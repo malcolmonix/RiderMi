@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@apollo/client": "^3.11.0",
+    "@tailwindcss/postcss": "^4.1.17",
     "clsx": "^2.1.1",
     "firebase": "^12.6.0",
     "framer-motion": "^12.23.25",

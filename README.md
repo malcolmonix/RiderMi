@@ -1,130 +1,181 @@
-# RiderMi - Rider Application
+# RiderMi - Rider Delivery Application
 
-Rider application for the Food Delivery & Ride Booking ecosystem. RiderMi enables riders to accept ride requests, share live location, and complete rides with interactive Mapbox maps.
+A fully functional rider/driver application similar to Uber or Bolt, built for the Food Delivery ecosystem. RiderMi enables riders to accept delivery orders, track deliveries with interactive Mapbox maps, and complete deliveries with real-time status updates.
 
-## Features
+## 🚀 Features
 
 ### ✅ Completed Features
-- **Interactive Map**: Mapbox GL integration showing rider location and available rides
-- **Ride Acceptance**: View and accept available ride requests
-- **Live Location Sharing**: Automatic location updates every 5 seconds
-- **Route Preview**: Route visualization to pickup and dropoff locations
-- **Status Management**: Update ride status (PICKED_UP, COMPLETED)
-- **Online/Offline Toggle**: Control availability for ride requests
-- **Distance Calculation**: Shows distance to pickup locations
-- **Real-time Updates**: Polling for new ride requests
-- **Authentication**: Email/password and Google sign-in
+- **Interactive Map**: Full Mapbox GL integration showing rider location and available orders
+- **Order Acceptance**: View and accept available delivery orders from restaurants
+- **Live Location Sharing**: Automatic GPS location updates to Firestore for real-time tracking
+- **Status Management**: Update order status (ASSIGNED, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED)
+- **Online/Offline Toggle**: Control availability for receiving delivery requests
+- **Distance Calculation**: Shows distance to pickup/dropoff locations
+- **Real-time Updates**: Polling for new orders with 10-second intervals
+- **Authentication**: Email/password and Google Sign-In with Firebase Auth
+- **Push Notifications**: FCM integration for new order alerts
+- **Earnings Dashboard**: Track daily, weekly, and monthly earnings
+- **Order History**: View completed and cancelled delivery history
+- **Profile Management**: Update rider info, vehicle details, and license plate
 
-### 🚧 Planned Features
-- Earnings dashboard
-- Ride history
-- Push notifications
-- Performance metrics
+### 📱 Pages
+- `/` - Main dashboard with map and available orders
+- `/login` - Authentication (Email/Password & Google Sign-In)
+- `/earnings` - Earnings tracking and transaction history
+- `/history` - Completed order history
+- `/profile` - Rider profile management
 
-## Tech Stack
+## 🛠 Tech Stack
 
-- **Framework**: Next.js 16+
-- **GraphQL Client**: Apollo Client
+- **Framework**: Next.js 16+ (React 19)
+- **GraphQL Client**: Apollo Client 3
 - **Authentication**: Firebase Auth
-- **Real-time**: Firebase Firestore
-- **Maps**: Mapbox GL JS (react-map-gl)
-- **Styling**: Tailwind CSS
-- **State**: React hooks + Apollo cache
+- **Real-time Database**: Firebase Firestore
+- **Maps**: Mapbox GL JS (react-map-gl v7)
+- **Styling**: Tailwind CSS 4
+- **State Management**: React hooks + Apollo cache
+- **Push Notifications**: Firebase Cloud Messaging
 
-## Setup
+## 📦 Installation
 
 ### Prerequisites
 - Node.js 18+
 - Firebase project configured
 - Mapbox account with API token
-- API server running on port 4000
+- [food-delivery-api](https://github.com/malcolmonix/food-delivery-api) server running
 
-### Installation
+### Setup
 
+1. Clone the repository:
 ```bash
-cd ridermi
-npm install
+git clone https://github.com/malcolmonix/RiderMi.git
+cd RiderMi
 ```
 
-### Environment Variables
+2. Install dependencies:
+```bash
+npm install --legacy-peer-deps
+```
 
-Create `.env.local` file:
+3. Configure environment variables:
+```bash
+cp .env.local.example .env.local
+# Edit .env.local with your credentials
+```
+
+4. Start development server:
+```bash
+npm run dev
+```
+
+App runs on `http://localhost:3000`
+
+## ⚙️ Environment Variables
+
+Create `.env.local` file with the following:
 
 ```env
-# Firebase Config (must match other apps)
+# Firebase Configuration
 NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=your_vapid_key
 
-# API Endpoint
+# API Endpoint (food-delivery-api server)
 NEXT_PUBLIC_GRAPHQL_URI=http://localhost:4000/graphql
 
 # Mapbox Configuration
-NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1IjoibWFsY29sbW9uaXgiLCJhIjoiY21pbmM2dnk3MTcydjNmczVsMnA1N3RlbyJ9.ZcElr4lOdzhEywm-570cCg
+NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token
 ```
 
-### Development
+## 🔄 Delivery Flow
 
-```bash
-npm run dev
-```
-
-App runs on `http://localhost:3000` (or configured port)
-
-## Ride Flow
-
-RiderMi enables riders to accept and complete rides:
+RiderMi integrates with the food-delivery-api and DeliverMi customer app:
 
 ```
-DeliverMi (Customer) → API → RiderMi (Rider) → DeliverMi (Tracking)
+Customer (DeliverMi) → API → Rider (RiderMi) → Customer (Tracking)
 ```
 
-1. **RiderMi**: Rider goes online
-2. **API**: Sends available ride requests
-3. **RiderMi**: Rider sees rides on map and in list
-4. **RiderMi**: Rider accepts ride (Status: ACCEPTED)
-5. **RiderMi**: Rider shares location every 5 seconds
-6. **DeliverMi**: Customer tracks rider in real-time
-7. **RiderMi**: Rider marks picked up (Status: PICKED_UP)
-8. **RiderMi**: Rider completes ride (Status: COMPLETED)
+### Order Lifecycle:
+1. **Go Online**: Rider toggles online status to receive orders
+2. **View Orders**: Available orders appear on map and in list
+3. **Accept Order**: Rider accepts order (Status: ASSIGNED)
+4. **Navigate to Restaurant**: Use pickup code for verification
+5. **Mark Picked Up**: Confirm order pickup (Status: PICKED_UP)
+6. **Start Delivery**: Begin navigation to customer (Status: OUT_FOR_DELIVERY)
+7. **Complete Delivery**: Enter delivery code to confirm (Status: DELIVERED)
 
-## Key Pages
+## 📊 GraphQL Operations
 
-- `/` - Dashboard with map and available rides
-- `/login` - Authentication (Email/Password & Google Sign-In)
-
-## GraphQL Operations
-
-### Queries
-- `availableRides` - Get all REQUESTED status rides
-- `myRides` - Get rider's ride history
-- `ride(id)` - Get specific ride details
+### Queries (Compatible with food-delivery-api)
+- `availableOrders` - Get unassigned orders for riders
+- `riderOrder(id)` - Get specific order assigned to rider
+- `me` - Get current user profile
 
 ### Mutations
-- `acceptRide(rideId)` - Accept a ride request
-- `updateRideStatus(rideId, status)` - Update ride status
-- `updateRiderLocation(latitude, longitude)` - Share live location
+- `assignRider(orderId)` - Accept/assign order to rider
+- `riderUpdateOrderStatus(orderId, status, code)` - Update order status
+- `riderReportNotReady(orderId, waitedMinutes)` - Report order not ready
+- `riderCancelOrder(orderId, reason)` - Cancel order after delay
 
-## Testing
-
-See `Docs/05-Testing/DELIVERMI-RIDERMI-TEST-PLAN.md` for complete test procedures.
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 ridermi/
 ├── src/
-│   ├── components/     # Reusable components
-│   ├── lib/           # Apollo + Firebase + Mapbox config
-│   ├── pages/         # Next.js pages
-│   └── styles/        # Global styles
-├── public/            # Static assets
-└── .env.local         # Environment config
+│   ├── components/          # Reusable UI components
+│   │   ├── ActiveOrderPanel.js   # Active order management
+│   │   ├── BottomNav.js          # Navigation bar
+│   │   ├── OrderCard.js          # Order list item
+│   │   └── RiderMap.js           # Mapbox map component
+│   ├── lib/                 # Configuration & utilities
+│   │   ├── apollo.js            # Apollo Client setup
+│   │   ├── firebase.js          # Firebase initialization
+│   │   ├── graphql.js           # GraphQL queries/mutations
+│   │   └── mapbox.js            # Mapbox utilities
+│   ├── pages/               # Next.js pages
+│   │   ├── _app.js              # App wrapper
+│   │   ├── index.js             # Main dashboard
+│   │   ├── login.js             # Authentication
+│   │   ├── earnings.js          # Earnings page
+│   │   ├── history.js           # Order history
+│   │   └── profile.js           # Profile settings
+│   └── styles/              # Global styles
+│       └── globals.css          # Tailwind + custom CSS
+├── public/                  # Static assets
+│   └── firebase-messaging-sw.js # Push notification worker
+├── .env.local.example       # Environment template
+├── postcss.config.js        # PostCSS configuration
+├── tailwind.config.js       # Tailwind configuration
+└── next.config.mjs          # Next.js configuration
 ```
 
-## Contributing
+## 🔗 Related Repositories
 
-Part of the Food Delivery & Ride Booking ecosystem. See root `.github/copilot-instructions.md` and `Docs/06-Development/` for development guidelines.
+- [food-delivery-api](https://github.com/malcolmonix/food-delivery-api) - GraphQL API server
+- [DeliverMi](https://github.com/malcolmonix/DeliverMi) - Customer app
+- [ChopChop](https://github.com/malcolmonix/ChopChop) - Main food ordering platform
+- [chopChopDocs](https://github.com/malcolmonix/chopChopDocs) - Documentation
+
+## 🧪 Development
+
+### Build for Production
+```bash
+npm run build
+```
+
+### Start Production Server
+```bash
+npm start
+```
+
+## 📄 License
+
+Part of the ChopChop Food Delivery ecosystem.
+
+## 🤝 Contributing
+
+See the [food-delivery-api documentation](https://github.com/malcolmonix/food-delivery-api) for API integration details and development guidelines.
