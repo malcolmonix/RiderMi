@@ -30,9 +30,9 @@ function MyApp({ Component, pageProps }) {
           
           if (token) {
             // Store FCM token in Firestore for rider notifications
+            // Note: We don't set available here - riders must explicitly go online
             await setDoc(doc(db, 'riders', currentUser.uid), {
               fcmToken: token,
-              available: true,
               updatedAt: new Date().toISOString()
             }, { merge: true });
           }
