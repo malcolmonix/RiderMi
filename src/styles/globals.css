@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/* Import Mapbox GL CSS */
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
+/* Root styles */
+:root {
+  --primary: #000000;
+  --primary-light: #333333;
+  --accent: #10B981;
+  --accent-light: #34D399;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  --success: #10B981;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f9fafb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Map container */
+.mapboxgl-map {
+  width: 100%;
+  height: 100%;
+}
+
+/* Custom marker styles */
+.rider-marker {
+  width: 40px;
+  height: 40px;
+  background: #10B981;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.pickup-marker {
+  width: 30px;
+  height: 30px;
+  background: #3B82F6;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dropoff-marker {
+  width: 30px;
+  height: 30px;
+  background: #EF4444;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Order card animation */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  animation: pulse-ring 1.5s ease-out infinite;
+  background: inherit;
+  opacity: 0.5;
+}
+
+/* Bottom sheet styles */
+.bottom-sheet {
+  touch-action: none;
+}
+
+/* Loading animation */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status badge colors */
+.status-pending {
+  background-color: #FEF3C7;
+  color: #92400E;
+}
+
+.status-confirmed {
+  background-color: #DBEAFE;
+  color: #1E40AF;
+}
+
+.status-processing {
+  background-color: #E0E7FF;
+  color: #3730A3;
+}
+
+.status-ready {
+  background-color: #D1FAE5;
+  color: #065F46;
+}
+
+.status-picked-up {
+  background-color: #FEF3C7;
+  color: #92400E;
+}
+
+.status-out-for-delivery {
+  background-color: #CFFAFE;
+  color: #0E7490;
+}
+
+.status-delivered {
+  background-color: #D1FAE5;
+  color: #065F46;
+}
+
+.status-cancelled {
+  background-color: #FEE2E2;
+  color: #991B1B;
+}
+
+/* Safe area for mobile */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Prevent text selection on interactive elements */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
