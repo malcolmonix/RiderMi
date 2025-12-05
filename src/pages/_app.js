@@ -70,7 +70,7 @@ function MyApp({ Component, pageProps }) {
 
   return (
     <ApolloProvider client={apolloClient}>
-      <Component {...pageProps} user={user} />
+      <Component {...pageProps} user={user} loading={loading} />
     </ApolloProvider>
   );
 }

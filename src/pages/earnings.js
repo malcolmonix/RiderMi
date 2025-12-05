@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import BottomNav from '../components/BottomNav';
 
-export default function Earnings({ user }) {
+export default function Earnings({ user, loading }) {
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, router]);
+  }, [user, loading, router]);
 
   // Mock earnings data - would come from API in production
   const earnings = {

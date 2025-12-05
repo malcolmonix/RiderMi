@@ -5,7 +5,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import BottomNav from '../components/BottomNav';
 
-export default function Profile({ user }) {
+export default function Profile({ user, loading: pageLoading }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,6 +17,9 @@ export default function Profile({ user }) {
   });
 
   useEffect(() => {
+    if (pageLoading) {
+      return;
+    }
     if (!user) {
       router.push('/login');
       return;

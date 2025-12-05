@@ -11,7 +11,7 @@ import OrderCard from '../components/OrderCard';
 import ActiveOrderPanel from '../components/ActiveOrderPanel';
 import BottomNav from '../components/BottomNav';
 
-export default function Home({ user }) {
+export default function Home({ user, loading }) {
   const router = useRouter();
   const [isOnline, setIsOnline] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
@@ -19,12 +19,12 @@ export default function Home({ user }) {
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (but not while loading)
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, router]);
+  }, [user, loading, router]);
 
   // Get current location
   useEffect(() => {

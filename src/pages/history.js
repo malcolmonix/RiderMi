@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import BottomNav from '../components/BottomNav';
 
-export default function History({ user }) {
+export default function History({ user, loading }) {
   const router = useRouter();
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, router]);
+  }, [user, loading, router]);
 
   // Mock order history - would come from API in production
   const orders = [
