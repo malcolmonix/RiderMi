@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { GET_AVAILABLE_ORDERS, GET_RIDER_ORDER, ASSIGN_RIDER, RIDER_UPDATE_ORDER_STATUS } from '../lib/graphql';
+import { GET_AVAILABLE_RIDES, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
 import OrderCard from '../components/OrderCard';
@@ -15,28 +15,27 @@ export default function Home({ user, loading }) {
   const router = useRouter();
   const [isOnline, setIsOnline] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [activeOrderId, setActiveOrderId] = useState(null);
+  const [activeRideId, setActiveRideId] = useState(null);
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
 
-  // Query available orders - Always call hooks unconditionally
-  const { data: ordersData, loading: ordersLoading, refetch: refetchOrders } = useQuery(GET_AVAILABLE_ORDERS, {
+  // Query available rides - Always call hooks unconditionally
+  const { data: ridesData, loading: ridesLoading, refetch: refetchRides } = useQuery(GET_AVAILABLE_RIDES, {
     skip: !user || !isOnline,
     pollInterval: isOnline ? 10000 : 0, // Poll every 10 seconds when online
   });
 
-  // Query active order details
-  const { data: activeOrderData, refetch: refetchActiveOrder } = useQuery(GET_RIDER_ORDER, {
-    variables: { id: activeOrderId },
-    skip: !activeOrderId,
-    pollInterval: activeOrderId ? 5000 : 0, // Poll every 5 seconds when order is active
+  // Query active ride details (reusing ride query with ID filter)
+  const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_AVAILABLE_RIDES, {
+    skip: !activeRideId,
+    pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
   });
 
   // Mutations
-  const [assignRider, { loading: assigning }] = useMutation(ASSIGN_RIDER, {
+  const [acceptRide, { loading: accepting }] = useMutation(ACCEPT_RIDE, {
     onCompleted: (data) => {
-      if (data?.assignRider) {
-        setActiveOrderId(data.assignRider.id);
+      if (data?.acceptRide) {
+        setActiveRideId(data.acceptRide.id);
         setShowOrdersList(false);
       }
     },
@@ -46,9 +45,9 @@ export default function Home({ user, loading }) {
     }
   });
 
-  const [updateOrderStatus, { loading: updating }] = useMutation(RIDER_UPDATE_ORDER_STATUS, {
+  const [updateRideStatus, { loading: updating }] = useMutation(UPDATE_RIDE_STATUS, {
     onCompleted: () => {
-      refetchActiveOrder();
+      refetchActiveRide();
     },
     onError: (error) => {
       setError(error.message);
@@ -108,33 +107,32 @@ export default function Home({ user, loading }) {
     }
   };
 
-  // Accept an order
-  const handleAcceptOrder = async (orderId) => {
+  // Accept a ride
+  const handleAcceptRide = async (rideId) => {
     try {
-      await assignRider({ variables: { orderId } });
+      await acceptRide({ variables: { rideId } });
     } catch (error) {
-      console.error('Error accepting order:', error);
+      console.error('Error accepting ride:', error);
     }
   };
 
-  // Update order status
-  const handleUpdateStatus = async (status, code = null) => {
-    if (!activeOrderId) return;
+  // Update ride status
+  const handleUpdateStatus = async (status) => {
+    if (!activeRideId) return;
 
     try {
-      await updateOrderStatus({
+      await updateRideStatus({
         variables: {
-          orderId: activeOrderId,
-          status,
-          code
+          rideId: activeRideId,
+          status
         }
       });
 
-      // If delivered, reset active order
-      if (status === 'DELIVERED') {
-        setActiveOrderId(null);
+      // If completed, reset active ride
+      if (status === 'COMPLETED') {
+        setActiveRideId(null);
         setShowOrdersList(true);
-        refetchOrders();
+        refetchRides();
       }
     } catch (error) {
       console.error('Error updating status:', error);
@@ -145,11 +143,16 @@ export default function Home({ user, loading }) {
     router.push('/profile');
   };
 
-  // Calculate distance to order
-  const getDistanceToOrder = (order) => {
-    if (!currentLocation || !order?.address) return null;
-    // For now, return a placeholder since we don't have lat/lng in orders
-    return null;
+  // Calculate distance to ride pickup
+  const getDistanceToRide = (ride) => {
+    if (!currentLocation || !ride?.pickupLat || !ride?.pickupLng) return null;
+    const distance = calculateDistance(
+      currentLocation.lat,
+      currentLocation.lng,
+      ride.pickupLat,
+      ride.pickupLng
+    );
+    return distance;
   };
 
   if (loading) {
@@ -167,8 +170,8 @@ export default function Home({ user, loading }) {
     return null;
   }
 
-  const availableOrders = ordersData?.availableOrders || [];
-  const activeOrder = activeOrderData?.riderOrder;
+  const availableRides = ridesData?.availableRides || [];
+  const activeRide = activeRideData?.availableRides?.find(r => r.id === activeRideId);
 
   return (
     <div className="h-screen w-screen relative overflow-hidden bg-gray-100">
@@ -176,8 +179,8 @@ export default function Home({ user, loading }) {
       <div className="absolute inset-0">
         <RiderMap
           currentLocation={currentLocation}
-          activeOrder={activeOrder}
-          availableOrders={showOrdersList ? availableOrders : []}
+          activeOrder={activeRide}
+          availableOrders={showOrdersList ? availableRides : []}
         />
       </div>
 
@@ -188,11 +191,11 @@ export default function Home({ user, loading }) {
           <div className="flex items-center gap-3 bg-white rounded-full px-4 py-2 shadow-lg">
             <button
               onClick={toggleOnline}
-              className={`relative w-14 h-7 rounded-full transition-colors duration-300 ${isOnline ? 'bg-green-500' : 'bg-gray-300'
+              className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-300 ${isOnline ? 'bg-green-500' : 'bg-gray-300'
                 }`}
             >
               <span
-                className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${isOnline ? 'translate-x-8' : 'translate-x-1'
+                className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${isOnline ? 'translate-x-7' : 'translate-x-0'
                   }`}
               />
             </button>
@@ -234,9 +237,9 @@ export default function Home({ user, loading }) {
         </div>
 
         <div className="px-4 pb-20 overflow-y-auto" style={{ maxHeight: 'calc(60vh - 60px)' }}>
-          {activeOrder ? (
+          {activeRide ? (
             <ActiveOrderPanel
-              order={activeOrder}
+              order={activeRide}
               currentLocation={currentLocation}
               onUpdateStatus={handleUpdateStatus}
               loading={updating}
@@ -244,26 +247,26 @@ export default function Home({ user, loading }) {
           ) : isOnline ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Available Orders</h2>
+                <h2 className="text-xl font-bold">Available Rides</h2>
                 <span className="text-sm text-gray-500">
-                  {ordersLoading ? 'Loading...' : `${availableOrders.length} orders`}
+                  {ridesLoading ? 'Loading...' : `${availableRides.length} rides`}
                 </span>
               </div>
 
-              {availableOrders.length === 0 ? (
+              {availableRides.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-4xl mb-4">📦</div>
-                  <p className="text-gray-500">No orders available right now</p>
-                  <p className="text-sm text-gray-400 mt-1">New orders will appear here</p>
+                  <p className="text-gray-500">No rides available right now</p>
+                  <p className="text-sm text-gray-400 mt-1">New rides will appear here</p>
                 </div>
               ) : (
-                availableOrders.map(order => (
+                availableRides.map(ride => (
                   <OrderCard
-                    key={order.id}
-                    order={order}
-                    distance={getDistanceToOrder(order)}
-                    onAccept={() => handleAcceptOrder(order.id)}
-                    loading={assigning}
+                    key={ride.id}
+                    order={ride}
+                    distance={getDistanceToRide(ride)}
+                    onAccept={() => handleAcceptRide(ride.id)}
+                    loading={accepting}
                   />
                 ))
               )}
@@ -272,7 +275,7 @@ export default function Home({ user, loading }) {
             <div className="text-center py-8">
               <div className="text-4xl mb-4">🛵</div>
               <h2 className="text-xl font-bold mb-2">You're Offline</h2>
-              <p className="text-gray-500">Go online to start receiving orders</p>
+              <p className="text-gray-500">Go online to start receiving rides</p>
             </div>
           )}
         </div>

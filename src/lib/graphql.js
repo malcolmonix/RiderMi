@@ -2,6 +2,34 @@ import { gql } from '@apollo/client';
 
 // Queries - Compatible with food-delivery-api
 
+// Get available rides for riders (unassigned rides)
+export const GET_AVAILABLE_RIDES = gql`
+  query GetAvailableRides {
+    availableRides {
+      id
+      rideId
+      customerId
+      riderId
+      status
+      pickupAddress
+      pickupLat
+      pickupLng
+      dropoffAddress
+      dropoffLat
+      dropoffLng
+      fare
+      distance
+      duration
+      paymentMethod
+      deliveryCode
+      rating
+      feedback
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 // Get available orders for riders (unassigned orders)
 export const GET_AVAILABLE_ORDERS = gql`
   query GetAvailableOrders {
@@ -110,6 +138,41 @@ export const GET_ME = gql`
 `;
 
 // Mutations - Compatible with food-delivery-api
+
+// Accept a ride (assign rider to ride)
+export const ACCEPT_RIDE = gql`
+  mutation AcceptRide($rideId: ID!) {
+    acceptRide(rideId: $rideId) {
+      id
+      rideId
+      customerId
+      riderId
+      status
+      pickupAddress
+      pickupLat
+      pickupLng
+      dropoffAddress
+      dropoffLat
+      dropoffLng
+      fare
+      distance
+      duration
+      createdAt
+    }
+  }
+`;
+
+// Update ride status
+export const UPDATE_RIDE_STATUS = gql`
+  mutation UpdateRideStatus($rideId: ID!, $status: String!) {
+    updateRideStatus(rideId: $rideId, status: $status) {
+      id
+      rideId
+      status
+      updatedAt
+    }
+  }
+`;
 
 // Assign rider to an order
 export const ASSIGN_RIDER = gql`
