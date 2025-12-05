@@ -7,7 +7,7 @@ import { auth, db } from '../lib/firebase';
 import { GET_AVAILABLE_RIDES, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
-import OrderCard from '../components/OrderCard';
+import RideCard from '../components/RideCard';
 import ActiveOrderPanel from '../components/ActiveOrderPanel';
 import BottomNav from '../components/BottomNav';
 
@@ -266,9 +266,9 @@ export default function Home({ user, loading }) {
                 </div>
               ) : (
                 availableRides.map(ride => (
-                  <OrderCard
+                  <RideCard
                     key={ride.id}
-                    order={ride}
+                    ride={ride}
                     distance={getDistanceToRide(ride)}
                     onAccept={() => handleAcceptRide(ride.id)}
                     loading={accepting}
