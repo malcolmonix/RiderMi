@@ -67,7 +67,7 @@ export default function Home({ user, loading }) {
     }
   }, [user, loading, router]);
 
-  // Get current location
+  // Get current location with improved timeout handling
   useEffect(() => {
     if (!navigator.geolocation || !user) return;
 
@@ -88,8 +88,16 @@ export default function Home({ user, loading }) {
           }, { merge: true }).catch(console.error);
         }
       },
-      (error) => console.error('Geolocation error:', error),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      (error) => {
+        if (error.code === 3) {
+          console.warn('⏱️ Geolocation timeout - will retry. Make sure location services are enabled.');
+        } else if (error.code === 1) {
+          console.error('❌ Location permission denied');
+        } else {
+          console.error('Geolocation error:', error);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
