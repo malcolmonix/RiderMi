@@ -8,7 +8,7 @@ export const GET_AVAILABLE_RIDES = gql`
     availableRides {
       id
       rideId
-      customerId
+      userId
       riderId
       status
       pickupAddress
@@ -24,6 +24,12 @@ export const GET_AVAILABLE_RIDES = gql`
       deliveryCode
       rating
       feedback
+      rider {
+        id
+        displayName
+        phoneNumber
+        photoURL
+      }
       createdAt
       updatedAt
     }
