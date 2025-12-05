@@ -4,11 +4,11 @@ import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { GET_AVAILABLE_RIDES, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
+import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
 import RideCard from '../components/RideCard';
-import ActiveOrderPanel from '../components/ActiveOrderPanel';
+import ActiveRidePanel from '../components/ActiveRidePanel';
 import BottomNav from '../components/BottomNav';
 
 export default function Home({ user, loading }) {
@@ -30,10 +30,16 @@ export default function Home({ user, loading }) {
     }
   });
 
-  // Query active ride details (reusing ride query with ID filter)
-  const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_AVAILABLE_RIDES, {
+  // Query active ride details
+  const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
+    variables: { id: activeRideId },
     skip: !activeRideId,
     pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
+    onCompleted: (data) => {
+      if (data?.getRide) {
+        console.log('🚗 Active ride updated:', data.getRide.status);
+      }
+    }
   });
 
   // Mutations
@@ -184,7 +190,7 @@ export default function Home({ user, loading }) {
   }
 
   const availableRides = ridesData?.availableRides || [];
-  const activeRide = activeRideData?.availableRides?.find(r => r.id === activeRideId);
+  const activeRide = activeRideData?.getRide;
 
   return (
     <div className="h-screen w-screen relative overflow-hidden bg-gray-100">
@@ -192,8 +198,8 @@ export default function Home({ user, loading }) {
       <div className="absolute inset-0">
         <RiderMap
           currentLocation={currentLocation}
-          activeOrder={activeRide}
-          availableOrders={showOrdersList ? availableRides : []}
+          activeRide={activeRide}
+          availableRides={showOrdersList ? availableRides : []}
         />
       </div>
 
@@ -251,8 +257,8 @@ export default function Home({ user, loading }) {
 
         <div className="px-4 pb-20 overflow-y-auto" style={{ maxHeight: 'calc(60vh - 60px)' }}>
           {activeRide ? (
-            <ActiveOrderPanel
-              order={activeRide}
+            <ActiveRidePanel
+              ride={activeRide}
               currentLocation={currentLocation}
               onUpdateStatus={handleUpdateStatus}
               loading={updating}
