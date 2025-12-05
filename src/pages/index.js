@@ -20,9 +20,14 @@ export default function Home({ user, loading }) {
   const [error, setError] = useState(null);
 
   // Query available rides - Always call hooks unconditionally
-  const { data: ridesData, loading: ridesLoading, refetch: refetchRides } = useQuery(GET_AVAILABLE_RIDES, {
+  const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
     skip: !user || !isOnline,
-    pollInterval: isOnline ? 10000 : 0, // Poll every 10 seconds when online
+    pollInterval: isOnline && user ? 10000 : 0, // Poll every 10 seconds when online
+    onError: (error) => {
+      console.error('❌ Error fetching available rides:', error);
+      setError(`Failed to load rides: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    }
   });
 
   // Query active ride details (reusing ride query with ID filter)
