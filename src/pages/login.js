@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { 
-  signInWithEmailAndPassword, 
+import {
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
-  GoogleAuthProvider 
+  GoogleAuthProvider,
+  onAuthStateChanged
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -19,29 +21,59 @@ export default function Login() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [processingRedirect, setProcessingRedirect] = useState(false);
 
   // Check if Firebase is configured
   const isFirebaseConfigured = auth !== null;
 
-  // Handle Google redirect result
+  // First, check if user is already logged in
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
-    
+    if (!isFirebaseConfigured) {
+      setCheckingAuth(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('🔐 Login page - Auth state changed:', user?.email || 'null');
+      setCheckingAuth(false);
+      if (user && !processingRedirect) {
+        // User is already logged in, redirect to home
+        console.log('✅ User already logged in, redirecting to home...');
+        router.replace('/');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router, isFirebaseConfigured, processingRedirect]);
+
+  // Handle Google redirect result AFTER auth check
+  useEffect(() => {
+    if (!isFirebaseConfigured || checkingAuth) return;
+
     const handleRedirectResult = async () => {
+      setProcessingRedirect(true);
       try {
+        console.log('🔄 Checking for redirect result...');
         const result = await getRedirectResult(auth);
-        if (result) {
+        if (result && result.user) {
+          console.log('✅ Got redirect result for user:', result.user.email);
           // Create or update rider profile in Firestore
           await createRiderProfile(result.user);
-          router.push('/');
+          console.log('✅ Rider profile created, redirecting...');
+          router.replace('/');
+          return;
         }
+        console.log('ℹ️ No redirect result (normal page load)');
       } catch (error) {
-        console.error('Redirect result error:', error);
+        console.error('❌ Redirect result error:', error);
         handleAuthError(error);
+      } finally {
+        setProcessingRedirect(false);
       }
     };
     handleRedirectResult();
-  }, [router, isFirebaseConfigured]);
+  }, [router, isFirebaseConfigured, checkingAuth]);
 
   const createRiderProfile = async (user) => {
     if (!db) return;
@@ -92,12 +124,12 @@ export default function Login() {
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
-    
+
     if (!isFirebaseConfigured) {
       setError('Firebase is not configured. Please set up environment variables.');
       return;
     }
-    
+
     setLoading(true);
     setError('');
 
@@ -108,7 +140,7 @@ export default function Login() {
       } else {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
       }
-      
+
       await createRiderProfile(userCredential.user);
       router.push('/');
     } catch (error) {
@@ -124,18 +156,37 @@ export default function Login() {
       setError('Firebase is not configured. Please set up environment variables.');
       return;
     }
-    
+
     setLoading(true);
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      if (result && result.user) {
+        await createRiderProfile(result.user);
+        router.replace('/');
+      }
     } catch (error) {
       console.error('Google sign-in error:', error);
       handleAuthError(error);
       setLoading(false);
     }
   };
+
+  // Show loading while checking auth state
+  if (checkingAuth || processingRedirect) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
+        <div className="w-20 h-20 bg-black rounded-2xl flex items-center justify-center mb-6">
+          <span className="text-white text-3xl">🛵</span>
+        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mb-4"></div>
+        <p className="text-gray-600">
+          {processingRedirect ? 'Completing sign in...' : 'Checking authentication...'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -146,7 +197,7 @@ export default function Login() {
             <span className="text-white text-3xl">🛵</span>
           </div>
         </div>
-        
+
         <h2 className="text-center text-3xl font-bold text-gray-900">
           RiderMi
         </h2>

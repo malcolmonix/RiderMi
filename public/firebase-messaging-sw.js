@@ -7,21 +7,17 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
 // Initialize Firebase in the service worker
-// These values should match your .env.local NEXT_PUBLIC_FIREBASE_* values
-// Service workers cannot access environment variables, so these must be hardcoded
-// or injected during the build process
+// These values are from chopchop-67750 Firebase project
 const firebaseConfig = {
-  // Replace with your Firebase config from .env.local
-  // These are public keys and safe to expose in client-side code
-  apiKey: self.FIREBASE_API_KEY || "",
-  authDomain: self.FIREBASE_AUTH_DOMAIN || "",
-  projectId: self.FIREBASE_PROJECT_ID || "",
-  storageBucket: self.FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: self.FIREBASE_APP_ID || ""
+  apiKey: 'AIzaSyC8XjBJN-Inntjfqd6GhkfRcbTe4hyMx6Q',
+  authDomain: 'chopchop-67750.firebaseapp.com',
+  projectId: 'chopchop-67750',
+  storageBucket: 'chopchop-67750.firebasestorage.app',
+  messagingSenderId: '835361851966',
+  appId: '1:835361851966:web:78810ea4389297a8679f6f'
 };
 
-// Only initialize if config is provided
+// Initialize Firebase
 if (firebaseConfig.apiKey && firebaseConfig.projectId) {
   firebase.initializeApp(firebaseConfig);
 

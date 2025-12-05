@@ -19,59 +19,7 @@ export default function Home({ user, loading }) {
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
 
-  // Redirect to login if not authenticated (but not while loading)
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
-  // Show loading screen while Firebase is initializing
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading RiderMi...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Redirect to login if not authenticated
-  if (!user) {
-    return null;
-  }
-
-  // Get current location
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-        setCurrentLocation(location);
-
-        // Update location in Firestore when online
-        if (isOnline && user) {
-          setDoc(doc(db, 'rider-locations', user.uid), {
-            latitude: location.lat,
-            longitude: location.lng,
-            updatedAt: new Date().toISOString()
-          }, { merge: true }).catch(console.error);
-        }
-      },
-      (error) => console.error('Geolocation error:', error),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [isOnline, user]);
-
-  // Query available orders
+  // Query available orders - Always call hooks unconditionally
   const { data: ordersData, loading: ordersLoading, refetch: refetchOrders } = useQuery(GET_AVAILABLE_ORDERS, {
     skip: !user || !isOnline,
     pollInterval: isOnline ? 10000 : 0, // Poll every 10 seconds when online
@@ -108,6 +56,41 @@ export default function Home({ user, loading }) {
     }
   });
 
+  // Redirect to login if not authenticated (but not while loading)
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  // Get current location
+  useEffect(() => {
+    if (!navigator.geolocation || !user) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setCurrentLocation(location);
+
+        // Update location in Firestore when online
+        if (isOnline && user) {
+          setDoc(doc(db, 'rider-locations', user.uid), {
+            latitude: location.lat,
+            longitude: location.lng,
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(console.error);
+        }
+      },
+      (error) => console.error('Geolocation error:', error),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isOnline, user]);
+
   // Toggle online status
   const toggleOnline = async () => {
     const newStatus = !isOnline;
@@ -140,10 +123,10 @@ export default function Home({ user, loading }) {
 
     try {
       await updateOrderStatus({
-        variables: { 
-          orderId: activeOrderId, 
+        variables: {
+          orderId: activeOrderId,
           status,
-          code 
+          code
         }
       });
 
@@ -158,20 +141,8 @@ export default function Home({ user, loading }) {
     }
   };
 
-  // Sign out
-  const handleSignOut = async () => {
-    try {
-      if (user) {
-        await setDoc(doc(db, 'riders', user.uid), {
-          available: false,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      }
-      await signOut(auth);
-      router.push('/login');
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
+  const goToProfile = () => {
+    router.push('/profile');
   };
 
   // Calculate distance to order
@@ -181,12 +152,23 @@ export default function Home({ user, loading }) {
     return null;
   };
 
-  const availableOrders = ordersData?.availableOrders || [];
-  const activeOrder = activeOrderData?.riderOrder;
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading RiderMi...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return null;
   }
+
+  const availableOrders = ordersData?.availableOrders || [];
+  const activeOrder = activeOrderData?.riderOrder;
 
   return (
     <div className="h-screen w-screen relative overflow-hidden bg-gray-100">
@@ -206,14 +188,12 @@ export default function Home({ user, loading }) {
           <div className="flex items-center gap-3 bg-white rounded-full px-4 py-2 shadow-lg">
             <button
               onClick={toggleOnline}
-              className={`relative w-14 h-7 rounded-full transition-colors duration-300 ${
-                isOnline ? 'bg-green-500' : 'bg-gray-300'
-              }`}
+              className={`relative w-14 h-7 rounded-full transition-colors duration-300 ${isOnline ? 'bg-green-500' : 'bg-gray-300'
+                }`}
             >
               <span
-                className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${
-                  isOnline ? 'translate-x-8' : 'translate-x-1'
-                }`}
+                className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${isOnline ? 'translate-x-8' : 'translate-x-1'
+                  }`}
               />
             </button>
             <span className={`text-sm font-bold ${isOnline ? 'text-green-600' : 'text-gray-500'}`}>
@@ -223,8 +203,8 @@ export default function Home({ user, loading }) {
 
           {/* Profile & Settings */}
           <div className="flex items-center gap-2">
-            <button 
-              onClick={handleSignOut}
+            <button
+              onClick={goToProfile}
               className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center"
             >
               <span className="text-lg">👤</span>
@@ -241,12 +221,12 @@ export default function Home({ user, loading }) {
       </div>
 
       {/* Bottom Panel */}
-      <div 
+      <div
         className="absolute bottom-0 left-0 right-0 z-40 bg-white rounded-t-3xl shadow-2xl safe-bottom"
         style={{ maxHeight: '60vh' }}
       >
         {/* Drag Handle */}
-        <div 
+        <div
           className="flex justify-center pt-3 pb-2 cursor-grab"
           onClick={() => setShowOrdersList(!showOrdersList)}
         >

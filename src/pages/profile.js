@@ -16,31 +16,20 @@ export default function Profile({ user, loading: pageLoading }) {
     licensePlate: ''
   });
 
-  // Show loading screen while Firebase is initializing
-  if (pageLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading RiderMi...</p>
-        </div>
+  const showLoading = () => (
+    <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading RiderMi...</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // Redirect to login if not authenticated
-  if (!user) {
-    return null;
-  }
+  if (pageLoading) return showLoading();
 
   useEffect(() => {
-    if (pageLoading) {
-      return;
-    }
-    if (!user) {
-      router.push('/login');
-      return;
-    }
+    if (pageLoading) return;
+    if (!user) return router.replace('/login');
 
     // Load profile from Firestore
     const loadProfile = async () => {
@@ -110,7 +99,7 @@ export default function Profile({ user, loading: pageLoading }) {
     }
   };
 
-  if (!user) return null;
+  if (!user) return showLoading();
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
