@@ -39,7 +39,7 @@ export const GET_AVAILABLE_RIDES = gql`
 // Get specific ride details
 export const GET_RIDE = gql`
   query GetRide($id: ID!) {
-    getRide(id: $id) {
+    ride(id: $id) {
       id
       rideId
       userId

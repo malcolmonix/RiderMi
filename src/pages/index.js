@@ -36,8 +36,8 @@ export default function Home({ user, loading }) {
     skip: !activeRideId,
     pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
     onCompleted: (data) => {
-      if (data?.getRide) {
-        console.log('🚗 Active ride updated:', data.getRide.status);
+      if (data?.ride) {
+        console.log('🚗 Active ride updated:', data.ride.status);
       }
     }
   });
@@ -72,6 +72,37 @@ export default function Home({ user, loading }) {
       router.push('/login');
     }
   }, [user, loading, router]);
+
+  // Persist active ride on page refresh
+  useEffect(() => {
+    if (user && activeRideId) {
+      localStorage.setItem('activeRideId', activeRideId);
+      localStorage.setItem('lastActiveRideTime', Date.now().toString());
+    }
+  }, [activeRideId, user]);
+
+  // Restore active ride on mount
+  useEffect(() => {
+    if (user && !activeRideId) {
+      const savedRideId = localStorage.getItem('activeRideId');
+      const lastActiveTime = parseInt(localStorage.getItem('lastActiveRideTime') || '0');
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+
+      if (savedRideId && lastActiveTime > oneHourAgo) {
+        console.log('🔄 Restoring active ride:', savedRideId);
+        setActiveRideId(savedRideId);
+        setIsOnline(true);
+      }
+    }
+  }, [user]);
+
+  // Auto-toggle online if ride becomes active/inactive
+  useEffect(() => {
+    if (activeRideId && !isOnline) {
+      console.log('🟢 Auto-going online - ride is active');
+      setIsOnline(true);
+    }
+  }, [activeRideId, isOnline]);
 
   // Get current location with improved timeout handling
   useEffect(() => {
@@ -112,6 +143,14 @@ export default function Home({ user, loading }) {
   // Toggle online status
   const toggleOnline = async () => {
     const newStatus = !isOnline;
+    
+    // Prevent going offline if ride is active
+    if (activeRide && newStatus === false) {
+      setError('❌ Cannot go offline during an active ride');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    
     setIsOnline(newStatus);
 
     if (user) {
@@ -147,11 +186,15 @@ export default function Home({ user, loading }) {
         }
       });
 
-      // If completed, reset active ride
+      // If completed, reset active ride and clear localStorage
       if (status === 'COMPLETED') {
-        setActiveRideId(null);
-        setShowOrdersList(true);
-        refetchRides();
+        setTimeout(() => {
+          setActiveRideId(null);
+          localStorage.removeItem('activeRideId');
+          localStorage.removeItem('lastActiveRideTime');
+          setShowOrdersList(true);
+          refetchRides();
+        }, 1000);
       }
     } catch (error) {
       console.error('Error updating status:', error);
@@ -190,7 +233,7 @@ export default function Home({ user, loading }) {
   }
 
   const availableRides = ridesData?.availableRides || [];
-  const activeRide = activeRideData?.getRide;
+  const activeRide = activeRideData?.ride;
 
   return (
     <div className="h-screen w-screen relative overflow-hidden bg-gray-100">
