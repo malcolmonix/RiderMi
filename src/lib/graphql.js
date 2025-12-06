@@ -107,3 +107,17 @@ export const UPDATE_RIDE_STATUS = gql`
     }
   }
 `;
+
+export const GET_RIDER_HISTORY = gql`
+  query GetRiderHistory {
+    riderRides {
+      id
+      rideId
+      status
+      pickupAddress
+      dropoffAddress
+      fare
+      createdAt
+    }
+  }
+`;
