@@ -18,13 +18,36 @@ const getNextStatus = (current) => {
 
 export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus, loading }) {
   const [selectedStatus, setSelectedStatus] = useState(null);
+  const [deliveryCode, setDeliveryCode] = useState('');
+  const [codeError, setCodeError] = useState(null);
   const statusInfo = RIDE_STATUSES[ride.status] || { label: ride.status, icon: '🚗', color: 'gray' };
   const nextStatus = getNextStatus(ride.status);
+  const isDeliveryStep = ride.status === 'ARRIVED_AT_DROPOFF';
 
   const handleUpdateStatus = async () => {
     if (selectedStatus) {
-      await onUpdateStatus(selectedStatus);
+      // If completing ride at dropoff, require code
+      if (selectedStatus === 'COMPLETED' && isDeliveryStep) {
+        if (!deliveryCode || deliveryCode.length !== 6) {
+          setCodeError('❌ Please enter a 6-digit code from customer');
+          return;
+        }
+        // Pass code to parent component for API call
+        await onUpdateStatus(selectedStatus, deliveryCode);
+        setDeliveryCode('');
+        setCodeError(null);
+      } else {
+        await onUpdateStatus(selectedStatus);
+      }
       setSelectedStatus(null);
+    }
+  };
+
+  const handleCodeChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setDeliveryCode(value);
+    if (value.length === 6) {
+      setCodeError(null);
     }
   };
 
@@ -101,6 +124,30 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
       {/* Next Action Button */}
       {nextStatus && (
         <div className="space-y-2">
+          {/* Delivery Code Input (only for ARRIVED_AT_DROPOFF → COMPLETED) */}
+          {isDeliveryStep && selectedStatus === 'COMPLETED' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm text-yellow-800 font-medium">
+                🔐 Ask customer for 6-digit delivery code:
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={deliveryCode}
+                onChange={handleCodeChange}
+                placeholder="Enter 6-digit code"
+                maxLength="6"
+                className="w-full px-4 py-3 text-center text-2xl font-bold tracking-widest border-2 border-yellow-300 rounded-lg focus:outline-none focus:border-yellow-500"
+              />
+              {codeError && (
+                <p className="text-sm text-red-600 text-center">{codeError}</p>
+              )}
+              {deliveryCode.length === 6 && !codeError && (
+                <p className="text-sm text-green-600 text-center">✅ Code ready to submit</p>
+              )}
+            </div>
+          )}
+
           {!selectedStatus ? (
             <button
               onClick={() => setSelectedStatus(nextStatus)}
@@ -113,14 +160,18 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
               <p className="text-sm text-yellow-800 font-medium">Confirm Status Update?</p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedStatus(null)}
+                  onClick={() => {
+                    setSelectedStatus(null);
+                    setDeliveryCode('');
+                    setCodeError(null);
+                  }}
                   className="flex-1 bg-white border border-gray-300 text-gray-900 font-bold py-2 rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdateStatus}
-                  disabled={loading}
+                  disabled={loading || (isDeliveryStep && selectedStatus === 'COMPLETED' && deliveryCode.length !== 6)}
                   className="flex-1 bg-black text-white font-bold py-2 rounded-lg disabled:opacity-50"
                 >
                   {loading ? 'Updating...' : 'Confirm'}

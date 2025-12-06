@@ -98,8 +98,8 @@ export const ACCEPT_RIDE = gql`
 
 // Update ride status (ACCEPTED, ARRIVED_AT_PICKUP, PICKED_UP, ARRIVED_AT_DROPOFF, COMPLETED)
 export const UPDATE_RIDE_STATUS = gql`
-  mutation UpdateRideStatus($rideId: ID!, $status: String!) {
-    updateRideStatus(rideId: $rideId, status: $status) {
+  mutation UpdateRideStatus($rideId: ID!, $status: String!, $confirmCode: String) {
+    updateRideStatus(rideId: $rideId, status: $status, confirmCode: $confirmCode) {
       id
       rideId
       status

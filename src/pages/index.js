@@ -175,15 +175,22 @@ export default function Home({ user, loading }) {
   };
 
   // Update ride status
-  const handleUpdateStatus = async (status) => {
+  const handleUpdateStatus = async (status, confirmCode) => {
     if (!activeRideId) return;
 
     try {
+      const variables = {
+        rideId: activeRideId,
+        status
+      };
+
+      // Include confirmation code for ride completion
+      if (status === 'COMPLETED' && confirmCode) {
+        variables.confirmCode = confirmCode;
+      }
+
       await updateRideStatus({
-        variables: {
-          rideId: activeRideId,
-          status
-        }
+        variables
       });
 
       // If completed, reset active ride and clear localStorage
@@ -198,6 +205,8 @@ export default function Home({ user, loading }) {
       }
     } catch (error) {
       console.error('Error updating status:', error);
+      setError(error.message || 'Failed to update ride status');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
