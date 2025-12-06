@@ -35,10 +35,29 @@ export default function Home({ user, loading }) {
     variables: { id: activeRideId },
     skip: !activeRideId,
     pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
+    fetchPolicy: 'network-only', // Always fetch fresh data, don't use cache
     onCompleted: (data) => {
       if (data?.ride) {
         console.log('🚗 Active ride updated:', data.ride.status);
+        // If ride is completed or cancelled, clear the active ride
+        if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
+          setTimeout(() => {
+            setActiveRideId(null);
+            localStorage.removeItem('activeRideId');
+            localStorage.removeItem('lastActiveRideTime');
+          }, 1000);
+        }
+      } else if (!data?.ride && activeRideId) {
+        // Ride not found - might be deleted or completed server-side
+        console.warn('⚠️ Active ride not found, clearing local state');
+        setActiveRideId(null);
+        localStorage.removeItem('activeRideId');
+        localStorage.removeItem('lastActiveRideTime');
       }
+    },
+    onError: (error) => {
+      console.error('❌ Error fetching active ride:', error);
+      // Don't clear activeRideId on error - might be temporary network issue
     }
   });
 
@@ -193,16 +212,12 @@ export default function Home({ user, loading }) {
         variables
       });
 
-      // If completed, reset active ride and clear localStorage
-      if (status === 'COMPLETED') {
-        setTimeout(() => {
-          setActiveRideId(null);
-          localStorage.removeItem('activeRideId');
-          localStorage.removeItem('lastActiveRideTime');
-          setShowOrdersList(true);
-          refetchRides();
-        }, 1000);
-      }
+      // Success feedback
+      console.log(`✅ Ride status updated to: ${status}`);
+      
+      // Don't clear localStorage here - let the query's onCompleted handle it
+      // when it detects COMPLETED/CANCELLED status
+      
     } catch (error) {
       console.error('Error updating status:', error);
       setError(error.message || 'Failed to update ride status');
