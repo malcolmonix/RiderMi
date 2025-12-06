@@ -18,6 +18,7 @@ export default function Home({ user, loading }) {
   const [activeRideId, setActiveRideId] = useState(null);
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
+  const [rideValidated, setRideValidated] = useState(false);
 
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
@@ -39,25 +40,43 @@ export default function Home({ user, loading }) {
     onCompleted: (data) => {
       if (data?.ride) {
         console.log('🚗 Active ride updated:', data.ride.status);
-        // If ride is completed or cancelled, clear the active ride
+        setRideValidated(true);
+        
+        // If ride is completed or cancelled, clear the active ride after delay
         if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
+          console.log('✅ Ride finished, clearing after delay');
           setTimeout(() => {
+            setActiveRideId(null);
+            setRideValidated(false);
+            localStorage.removeItem('activeRideId');
+            localStorage.removeItem('lastActiveRideTime');
+          }, 2000);
+        }
+      } else if (!data?.ride && activeRideId) {
+        // Ride not found - retry a few times before clearing
+        console.warn('⚠️ Active ride not found in query, will validate');
+        setRideValidated(false);
+        
+        // Only clear if ride is truly missing after retries
+        setTimeout(() => {
+          if (!rideValidated) {
+            console.error('🧹 Ride confirmed missing, clearing local state');
             setActiveRideId(null);
             localStorage.removeItem('activeRideId');
             localStorage.removeItem('lastActiveRideTime');
-          }, 1000);
-        }
-      } else if (!data?.ride && activeRideId) {
-        // Ride not found - might be deleted or completed server-side
-        console.warn('⚠️ Active ride not found, clearing local state');
-        setActiveRideId(null);
-        localStorage.removeItem('activeRideId');
-        localStorage.removeItem('lastActiveRideTime');
+          }
+        }, 3000);
       }
     },
     onError: (error) => {
       console.error('❌ Error fetching active ride:', error);
       // Don't clear activeRideId on error - might be temporary network issue
+      if (error.message?.includes('Authentication')) {
+        console.error('🔐 Auth error, clearing ride');
+        setActiveRideId(null);
+        setRideValidated(false);
+        localStorage.removeItem('activeRideId');
+      }
     }
   });
 
@@ -65,12 +84,21 @@ export default function Home({ user, loading }) {
   const [acceptRide, { loading: accepting }] = useMutation(ACCEPT_RIDE, {
     onCompleted: (data) => {
       if (data?.acceptRide) {
-        setActiveRideId(data.acceptRide.id);
+        const rideId = data.acceptRide.id || data.acceptRide.rideId;
+        console.log('✅ Ride accepted successfully:', rideId);
+        
+        setActiveRideId(rideId);
+        setRideValidated(true);
         setShowOrdersList(false);
+        
+        // Persist to localStorage
+        localStorage.setItem('activeRideId', rideId);
+        localStorage.setItem('lastActiveRideTime', Date.now().toString());
       }
     },
     onError: (error) => {
-      setError(error.message);
+      console.error('❌ Accept ride error:', error);
+      setError(error.message || 'Failed to accept ride');
       setTimeout(() => setError(null), 5000);
     }
   });
@@ -100,20 +128,25 @@ export default function Home({ user, loading }) {
     }
   }, [activeRideId, user]);
 
-  // Restore active ride on mount
+  // Restore active ride on mount with validation
   useEffect(() => {
     if (user && !activeRideId) {
       const savedRideId = localStorage.getItem('activeRideId');
       const lastActiveTime = parseInt(localStorage.getItem('lastActiveRideTime') || '0');
-      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+      const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
 
-      if (savedRideId && lastActiveTime > oneHourAgo) {
-        console.log('🔄 Restoring active ride:', savedRideId);
+      if (savedRideId && lastActiveTime > twoHoursAgo) {
+        console.log('🔄 Attempting to restore active ride:', savedRideId);
         setActiveRideId(savedRideId);
         setIsOnline(true);
+        // Validation will happen when query runs
+      } else if (savedRideId && lastActiveTime <= twoHoursAgo) {
+        console.log('🧹 Clearing stale ride from localStorage (>2 hours old)');
+        localStorage.removeItem('activeRideId');
+        localStorage.removeItem('lastActiveRideTime');
       }
     }
-  }, [user]);
+  }, [user, activeRideId]);
 
   // Auto-toggle online if ride becomes active/inactive
   useEffect(() => {
@@ -185,9 +218,10 @@ export default function Home({ user, loading }) {
   };
 
   // Accept a ride
-  const handleAcceptRide = async (rideId) => {
+  const handleAcceptRide = async (ridePublicId) => {
     try {
-      await acceptRide({ variables: { rideId } });
+      // API accepts either the public rideId or doc id; use public to match resolver expectations first
+      await acceptRide({ variables: { rideId: ridePublicId } });
     } catch (error) {
       console.error('Error accepting ride:', error);
     }
@@ -351,7 +385,7 @@ export default function Home({ user, loading }) {
                     key={ride.id}
                     ride={ride}
                     distance={getDistanceToRide(ride)}
-                    onAccept={() => handleAcceptRide(ride.id)}
+                    onAccept={() => handleAcceptRide(ride.rideId || ride.id)}
                     loading={accepting}
                   />
                 ))
