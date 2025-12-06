@@ -69,32 +69,6 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
       </div>
 
       {/* Status Timeline */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-200">
-        <h3 className="font-bold mb-3 text-gray-900">Journey Progress</h3>
-        <div className="space-y-3">
-          {Object.entries(RIDE_STATUSES).slice(0, 5).map(([status, info], idx) => {
-            const isCompleted = ['ACCEPTED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'ARRIVED_AT_DROPOFF', 'COMPLETED']
-              .indexOf(status) <= ['ACCEPTED', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'ARRIVED_AT_DROPOFF', 'COMPLETED'].indexOf(ride.status);
-
-            return (
-              <div key={status} className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${
-                  isCompleted ? `bg-${info.color}-500` : 'bg-gray-300'
-                }`}>
-                  {isCompleted ? '✓' : idx + 1}
-                </div>
-                <div className="flex-1">
-                  <p className={`font-medium ${isCompleted ? 'text-gray-900' : 'text-gray-500'}`}>
-                    {info.label}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Current Status */}
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
         <p className="text-sm text-blue-600 mb-1">Current Status</p>
         <div className="flex items-center gap-2">
@@ -103,22 +77,25 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
         </div>
       </div>
 
-      {/* Pickup Location */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-200">
-        <p className="text-xs text-gray-500 mb-2">📍 Pickup Location</p>
-        <p className="font-medium text-gray-900 line-clamp-2">{ride.pickupAddress || 'Address not provided'}</p>
-        {ride.pickupLat && ride.pickupLng && (
-          <p className="text-xs text-gray-500 mt-1">{ride.pickupLat.toFixed(4)}, {ride.pickupLng.toFixed(4)}</p>
-        )}
-      </div>
+      {/* Pickup & Dropoff Locations - Compact */}
+      <div className="space-y-2">
+        {/* Pickup Location */}
+        <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+          <p className="text-xs text-blue-600 font-semibold mb-1">📍 FROM</p>
+          <p className="font-medium text-gray-900 text-sm line-clamp-1">{ride.pickupAddress || 'Address not provided'}</p>
+          {ride.pickupLat && ride.pickupLng && (
+            <p className="text-xs text-gray-500 mt-0.5">{ride.pickupLat.toFixed(4)}, {ride.pickupLng.toFixed(4)}</p>
+          )}
+        </div>
 
-      {/* Dropoff Location */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-200">
-        <p className="text-xs text-gray-500 mb-2">📍 Dropoff Location</p>
-        <p className="font-medium text-gray-900 line-clamp-2">{ride.dropoffAddress || 'Address not provided'}</p>
-        {ride.dropoffLat && ride.dropoffLng && (
-          <p className="text-xs text-gray-500 mt-1">{ride.dropoffLat.toFixed(4)}, {ride.dropoffLng.toFixed(4)}</p>
-        )}
+        {/* Dropoff Location */}
+        <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
+          <p className="text-xs text-orange-600 font-semibold mb-1">📍 TO</p>
+          <p className="font-medium text-gray-900 text-sm line-clamp-1">{ride.dropoffAddress || 'Address not provided'}</p>
+          {ride.dropoffLat && ride.dropoffLng && (
+            <p className="text-xs text-gray-500 mt-0.5">{ride.dropoffLat.toFixed(4)}, {ride.dropoffLng.toFixed(4)}</p>
+          )}
+        </div>
       </div>
 
       {/* Next Action Button */}
