@@ -59,13 +59,14 @@ export default function Home({ user, loading }) {
         }
       } else if (!data?.ride && activeRideId) {
         // Active ride ID exists locally but server returned null ride
-        // This is the CRITICAL fix: Check if we really should clear or if it's a glitch
         console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
+        console.log('🧹 Clearing stuck ride from localStorage');
 
-        // Don't auto-clear immediately. Let the user handle it or wait for next poll.
-        // If it persists for many polls, the user might be stuck, but better stuck than lost.
-        // We will NOT clear here.
+        setActiveRideId(null);
         setRideValidated(false);
+        localStorage.removeItem('activeRideId');
+        localStorage.removeItem('lastActiveRideTime');
+        setShowOrdersList(true); // Show available orders again
       }
     },
     onError: (error) => {
