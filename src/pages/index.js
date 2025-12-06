@@ -32,6 +32,7 @@ export default function Home({ user, loading }) {
   });
 
   // Query active ride details
+  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
   const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
@@ -42,9 +43,9 @@ export default function Home({ user, loading }) {
         console.log('🚗 Active ride updated:', data.ride.status);
         setRideValidated(true);
         
-        // If ride is completed or cancelled, clear the active ride after delay
+        // ONLY clear when server confirms ride is finished
         if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
-          console.log('✅ Ride finished, clearing after delay');
+          console.log('✅ SERVER CONFIRMED: Ride finished with status:', data.ride.status);
           setTimeout(() => {
             setActiveRideId(null);
             setRideValidated(false);
@@ -53,24 +54,15 @@ export default function Home({ user, loading }) {
           }, 2000);
         }
       } else if (!data?.ride && activeRideId) {
-        // Ride not found - retry a few times before clearing
-        console.warn('⚠️ Active ride not found in query, will validate');
+        // Ride temporarily unavailable - DON'T clear. Log and retry.
+        console.warn('⚠️ Active ride temporarily unreachable');
+        console.log('⏳ Retrying. Network issue does not delete ride.');
         setRideValidated(false);
-        
-        // Only clear if ride is truly missing after retries
-        setTimeout(() => {
-          if (!rideValidated) {
-            console.error('🧹 Ride confirmed missing, clearing local state');
-            setActiveRideId(null);
-            localStorage.removeItem('activeRideId');
-            localStorage.removeItem('lastActiveRideTime');
-          }
-        }, 3000);
       }
     },
     onError: (error) => {
       console.error('❌ Error fetching active ride:', error);
-      // Don't clear activeRideId on error - might be temporary network issue
+      // Only clear on auth errors
       if (error.message?.includes('Authentication')) {
         console.error('🔐 Auth error, clearing ride');
         setActiveRideId(null);
