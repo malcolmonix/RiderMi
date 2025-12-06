@@ -33,30 +33,38 @@ export default function Home({ user, loading }) {
 
   // Query active ride details
   // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
+  // Query active ride details
+  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
   const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
     pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
     fetchPolicy: 'network-only', // Always fetch fresh data, don't use cache
+    notifyOnNetworkStatusChange: true,
     onCompleted: (data) => {
       if (data?.ride) {
         console.log('🚗 Active ride updated:', data.ride.status);
         setRideValidated(true);
-        
+
         // ONLY clear when server confirms ride is finished
         if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
           console.log('✅ SERVER CONFIRMED: Ride finished with status:', data.ride.status);
+          // Wait a moment for UI to show completion state before clearing
           setTimeout(() => {
             setActiveRideId(null);
             setRideValidated(false);
             localStorage.removeItem('activeRideId');
             localStorage.removeItem('lastActiveRideTime');
-          }, 2000);
+          }, 5000);
         }
       } else if (!data?.ride && activeRideId) {
-        // Ride temporarily unavailable - DON'T clear. Log and retry.
-        console.warn('⚠️ Active ride temporarily unreachable');
-        console.log('⏳ Retrying. Network issue does not delete ride.');
+        // Active ride ID exists locally but server returned null ride
+        // This is the CRITICAL fix: Check if we really should clear or if it's a glitch
+        console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
+
+        // Don't auto-clear immediately. Let the user handle it or wait for next poll.
+        // If it persists for many polls, the user might be stuck, but better stuck than lost.
+        // We will NOT clear here.
         setRideValidated(false);
       }
     },
@@ -78,11 +86,11 @@ export default function Home({ user, loading }) {
       if (data?.acceptRide) {
         const rideId = data.acceptRide.id || data.acceptRide.rideId;
         console.log('✅ Ride accepted successfully:', rideId);
-        
+
         setActiveRideId(rideId);
         setRideValidated(true);
         setShowOrdersList(false);
-        
+
         // Persist to localStorage
         localStorage.setItem('activeRideId', rideId);
         localStorage.setItem('lastActiveRideTime', Date.now().toString());
@@ -187,14 +195,14 @@ export default function Home({ user, loading }) {
   // Toggle online status
   const toggleOnline = async () => {
     const newStatus = !isOnline;
-    
+
     // Prevent going offline if ride is active
     if (activeRide && newStatus === false) {
       setError('❌ Cannot go offline during an active ride');
       setTimeout(() => setError(null), 3000);
       return;
     }
-    
+
     setIsOnline(newStatus);
 
     if (user) {
@@ -240,10 +248,10 @@ export default function Home({ user, loading }) {
 
       // Success feedback
       console.log(`✅ Ride status updated to: ${status}`);
-      
+
       // Don't clear localStorage here - let the query's onCompleted handle it
       // when it detects COMPLETED/CANCELLED status
-      
+
     } catch (error) {
       console.error('Error updating status:', error);
       setError(error.message || 'Failed to update ride status');
