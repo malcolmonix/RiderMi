@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth, db, registerMessagingSW, requestAndGetFcmToken } from '../lib/firebase';
 import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
@@ -151,6 +151,13 @@ export default function Home({ user, loading }) {
     }
   }, [user, activeRideId]);
 
+  // Register service worker for FCM on mount
+  useEffect(() => {
+    if (user) {
+      registerMessagingSW();
+    }
+  }, [user]);
+
   // Auto-toggle online if ride becomes active/inactive
   useEffect(() => {
     if (activeRideId && !isOnline) {
@@ -210,10 +217,24 @@ export default function Home({ user, loading }) {
 
     if (user) {
       try {
-        await setDoc(doc(db, 'riders', user.uid), {
+        const updateData = {
           available: newStatus,
           updatedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        // Register FCM token when going online
+        if (newStatus === true) {
+          console.log('📱 Rider going online, registering FCM token...');
+          const fcmToken = await requestAndGetFcmToken();
+          if (fcmToken) {
+            updateData.fcmToken = fcmToken;
+            console.log('✅ FCM token registered');
+          } else {
+            console.warn('⚠️ Failed to get FCM token - notifications may not work');
+          }
+        }
+
+        await setDoc(doc(db, 'riders', user.uid), updateData, { merge: true });
       } catch (error) {
         console.error('Error updating rider status:', error);
       }
