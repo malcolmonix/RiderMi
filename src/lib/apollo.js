@@ -2,7 +2,10 @@ import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 import { getAuth } from 'firebase/auth';
 
-const apiUri = process.env.NEXT_PUBLIC_GRAPHQL_URI || 'http://localhost:4000/graphql';
+const productionApiUri = 'https://food-delivery-api-indol.vercel.app/graphql';
+const developmentApiUri = 'http://localhost:4000/graphql';
+
+const apiUri = process.env.NEXT_PUBLIC_GRAPHQL_URI || (process.env.NODE_ENV === 'production' ? productionApiUri : developmentApiUri);
 
 const httpLink = createHttpLink({ uri: apiUri, credentials: 'same-origin' });
 
@@ -23,6 +26,7 @@ const authLink = setContext(async (_, { headers }) => {
 export const apolloClient = new ApolloClient({
   link: authLink.concat(httpLink),
   cache: new InMemoryCache(),
+  devtools: { enabled: process.env.NODE_ENV !== 'production' },
 });
 
 export default apolloClient;
