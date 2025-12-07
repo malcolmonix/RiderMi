@@ -19,6 +19,7 @@ export default function Home({ user, loading }) {
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
   const [rideValidated, setRideValidated] = useState(false);
+  const [rideErrorCount, setRideErrorCount] = useState(0);
 
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
@@ -33,18 +34,17 @@ export default function Home({ user, loading }) {
 
   // Query active ride details
   // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
-  // Query active ride details
-  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
   const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
-    pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
-    fetchPolicy: 'network-only', // Always fetch fresh data, don't use cache
+    pollInterval: activeRideId && rideErrorCount < 5 ? 5000 : 0, // Stop polling after 5 errors
+    fetchPolicy: 'cache-and-network', // Use cache but always fetch network
     notifyOnNetworkStatusChange: true,
     onCompleted: (data) => {
       if (data?.ride) {
         console.log('🚗 Active ride updated:', data.ride.status);
         setRideValidated(true);
+        setRideErrorCount(0); // Reset error count on success
 
         // ONLY clear when server confirms ride is finished
         if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
@@ -71,12 +71,14 @@ export default function Home({ user, loading }) {
     },
     onError: (error) => {
       console.error('❌ Error fetching active ride:', error);
-      // Only clear on auth errors
-      if (error.message?.includes('Authentication')) {
-        console.error('🔐 Auth error, clearing ride');
+      setRideErrorCount(prev => prev + 1);
+      // Only clear on auth errors or after many failures
+      if (error.message?.includes('Authentication') || rideErrorCount >= 4) {
+        console.error('🔐 Auth error or too many errors, clearing ride');
         setActiveRideId(null);
         setRideValidated(false);
         localStorage.removeItem('activeRideId');
+        setRideErrorCount(0);
       }
     }
   });
