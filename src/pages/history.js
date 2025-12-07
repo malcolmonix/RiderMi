@@ -34,7 +34,13 @@ export default function History({ user, loading }) {
   // Fetch rider history from API
   const { data, loading: historyLoading, error } = useQuery(GET_RIDER_HISTORY, {
     skip: !user,
-    fetchPolicy: 'network-only' // Always get fresh history
+    fetchPolicy: 'network-only', // Always get fresh history
+    onError: (error) => {
+      console.error('❌ Error fetching rider history:', error);
+      console.error('Error details:', error.message);
+      console.error('GraphQL errors:', error.graphQLErrors);
+      console.error('Network error:', error.networkError);
+    }
   });
 
   const orders = data?.riderRides || [];
@@ -77,7 +83,10 @@ export default function History({ user, loading }) {
         {historyLoading ? (
           <div className="text-center py-12 text-gray-400">Loading history...</div>
         ) : error ? (
-          <div className="text-center py-12 text-red-500">Error loading history</div>
+          <div className="text-center py-12">
+            <div className="text-red-500 mb-2">Error loading history</div>
+            <p className="text-xs text-gray-500">{error.message}</p>
+          </div>
         ) : filteredOrders.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">📋</div>
