@@ -7,7 +7,8 @@ const developmentApiUri = 'http://localhost:4000/graphql';
 
 const apiUri = process.env.NEXT_PUBLIC_GRAPHQL_URI || (process.env.NODE_ENV === 'production' ? productionApiUri : developmentApiUri);
 
-const httpLink = createHttpLink({ uri: apiUri, credentials: 'include' });
+// Don't use credentials: 'include' with CORS wildcard - API will send specific origin instead
+const httpLink = createHttpLink({ uri: apiUri });
 
 const authLink = setContext(async (_, { headers }) => {
   try {
