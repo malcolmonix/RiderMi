@@ -23,63 +23,70 @@ export default function Home({ user, loading }) {
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
     skip: !user || !isOnline,
-    pollInterval: isOnline && user ? 10000 : 0, // Poll every 10 seconds when online
-    onError: (error) => {
-      console.error('❌ Error fetching available rides:', error);
-      setError(`Failed to load rides: ${error.message}`);
-      setTimeout(() => setError(null), 5000);
-    }
+    pollInterval: isOnline && user ? 10000 : 0 // Poll every 10 seconds when online
   });
+
+  // Surface rides query errors without using onError (Apollo 3.14 warns against setState in callbacks)
+  useEffect(() => {
+    if (ridesError) {
+      console.error('❌ Error fetching available rides:', ridesError);
+      setError(`Failed to load rides: ${ridesError.message}`);
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [ridesError]);
 
   // Query active ride details
   // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
   // Query active ride details
   // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
-  const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
+  const { data: activeRideData, error: activeRideError, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
     pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
-    fetchPolicy: 'network-only', // Always fetch fresh data, don't use cache
-    notifyOnNetworkStatusChange: true,
-    onCompleted: (data) => {
-      if (data?.ride) {
-        console.log('🚗 Active ride updated:', data.ride.status);
-        setRideValidated(true);
-
-        // ONLY clear when server confirms ride is finished
-        if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
-          console.log('✅ SERVER CONFIRMED: Ride finished with status:', data.ride.status);
-          // Wait a moment for UI to show completion state before clearing
-          setTimeout(() => {
-            setActiveRideId(null);
-            setRideValidated(false);
-            localStorage.removeItem('activeRideId');
-            localStorage.removeItem('lastActiveRideTime');
-          }, 5000);
-        }
-      } else if (!data?.ride && activeRideId) {
-        // Active ride ID exists locally but server returned null ride
-        console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
-        console.log('🧹 Clearing stuck ride from localStorage');
-
-        setActiveRideId(null);
-        setRideValidated(false);
-        localStorage.removeItem('activeRideId');
-        localStorage.removeItem('lastActiveRideTime');
-        setShowOrdersList(true); // Show available orders again
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Error fetching active ride:', error);
-      // Only clear on auth errors
-      if (error.message?.includes('Authentication')) {
-        console.error('🔐 Auth error, clearing ride');
-        setActiveRideId(null);
-        setRideValidated(false);
-        localStorage.removeItem('activeRideId');
-      }
-    }
+    fetchPolicy: 'cache-and-network', // Return cache first, then update
+    notifyOnNetworkStatusChange: true
   });
+
+  // Handle active ride data updates
+  useEffect(() => {
+    if (!activeRideData) return;
+
+    const ride = activeRideData.ride;
+    if (ride) {
+      console.log('🚗 Active ride updated:', ride.status);
+      setRideValidated(true);
+
+      if (ride.status === 'COMPLETED' || ride.status === 'CANCELLED') {
+        console.log('✅ SERVER CONFIRMED: Ride finished with status:', ride.status);
+        const timer = setTimeout(() => {
+          setActiveRideId(null);
+          setRideValidated(false);
+          localStorage.removeItem('activeRideId');
+          localStorage.removeItem('lastActiveRideTime');
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    } else if (activeRideId) {
+      console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
+      setActiveRideId(null);
+      setRideValidated(false);
+      localStorage.removeItem('activeRideId');
+      localStorage.removeItem('lastActiveRideTime');
+      setShowOrdersList(true);
+    }
+  }, [activeRideData, activeRideId]);
+
+  // Handle active ride query errors
+  useEffect(() => {
+    if (!activeRideError) return;
+    console.error('❌ Error fetching active ride:', activeRideError);
+    if (activeRideError.message?.includes('Authentication')) {
+      setActiveRideId(null);
+      setRideValidated(false);
+      localStorage.removeItem('activeRideId');
+    }
+  }, [activeRideError]);
 
   // Mutations
   const [acceptRide, { loading: accepting }] = useMutation(ACCEPT_RIDE, {
