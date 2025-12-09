@@ -37,6 +37,16 @@ export default function History({ user, loading }) {
     fetchPolicy: 'network-only' // Always get fresh history
   });
 
+  // Handle query errors with useEffect
+  useEffect(() => {
+    if (error) {
+      console.error('❌ Error fetching rider history:', error);
+      console.error('Error details:', error.message);
+      console.error('GraphQL errors:', error.graphQLErrors);
+      console.error('Network error:', error.networkError);
+    }
+  }, [error]);
+
   const orders = data?.riderRides || [];
 
   const filteredOrders = filter === 'all'
@@ -77,7 +87,10 @@ export default function History({ user, loading }) {
         {historyLoading ? (
           <div className="text-center py-12 text-gray-400">Loading history...</div>
         ) : error ? (
-          <div className="text-center py-12 text-red-500">Error loading history</div>
+          <div className="text-center py-12">
+            <div className="text-red-500 mb-2">Error loading history</div>
+            <p className="text-xs text-gray-500">{error.message}</p>
+          </div>
         ) : filteredOrders.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">📋</div>

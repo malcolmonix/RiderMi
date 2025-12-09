@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth, db, registerMessagingSW, requestAndGetFcmToken } from '../lib/firebase';
 import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
@@ -19,6 +19,7 @@ export default function Home({ user, loading }) {
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
   const [rideValidated, setRideValidated] = useState(false);
+  const [rideErrorCount, setRideErrorCount] = useState(0);
 
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
@@ -26,7 +27,22 @@ export default function Home({ user, loading }) {
     pollInterval: isOnline && user ? 10000 : 0 // Poll every 10 seconds when online
   });
 
-  // Surface rides query errors without using onError (Apollo 3.14 warns against setState in callbacks)
+  // Query active ride details
+  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
+  const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError } = useQuery(GET_RIDE, {
+    variables: { id: activeRideId },
+    skip: !activeRideId,
+    pollInterval: activeRideId && rideErrorCount < 5 ? 5000 : 0, // Stop polling after 5 errors
+    fetchPolicy: 'cache-and-network', // Use cache but always fetch network
+    notifyOnNetworkStatusChange: true
+  });
+
+  // Mutations
+  const [acceptRide, { loading: accepting, data: acceptRideData, error: acceptRideError }] = useMutation(ACCEPT_RIDE);
+
+  const [updateRideStatus, { loading: updating, data: updateRideStatusData, error: updateRideStatusError }] = useMutation(UPDATE_RIDE_STATUS);
+
+  // Handle ridesError from GET_AVAILABLE_RIDES query
   useEffect(() => {
     if (ridesError) {
       console.error('❌ Error fetching available rides:', ridesError);
@@ -36,90 +52,97 @@ export default function Home({ user, loading }) {
     }
   }, [ridesError]);
 
-  // Query active ride details
-  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
-  // Query active ride details
-  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
-  const { data: activeRideData, error: activeRideError, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
-    variables: { id: activeRideId },
-    skip: !activeRideId,
-    pollInterval: activeRideId ? 5000 : 0, // Poll every 5 seconds when ride is active
-    fetchPolicy: 'cache-and-network', // Return cache first, then update
-    notifyOnNetworkStatusChange: true
-  });
-
-  // Handle active ride data updates
+  // Handle activeRideData and activeRideError from GET_RIDE query
   useEffect(() => {
-    if (!activeRideData) return;
-
-    const ride = activeRideData.ride;
-    if (ride) {
-      console.log('🚗 Active ride updated:', ride.status);
+    let timer;
+    
+    if (activeRideData?.ride) {
+      console.log('🚗 Active ride updated:', activeRideData.ride.status);
       setRideValidated(true);
+      setRideErrorCount(0); // Reset error count on success
 
-      if (ride.status === 'COMPLETED' || ride.status === 'CANCELLED') {
-        console.log('✅ SERVER CONFIRMED: Ride finished with status:', ride.status);
-        const timer = setTimeout(() => {
+      // ONLY clear when server confirms ride is finished
+      if (activeRideData.ride.status === 'COMPLETED' || activeRideData.ride.status === 'CANCELLED') {
+        console.log('✅ SERVER CONFIRMED: Ride finished with status:', activeRideData.ride.status);
+        // Wait a moment for UI to show completion state before clearing
+        timer = setTimeout(() => {
           setActiveRideId(null);
           setRideValidated(false);
           localStorage.removeItem('activeRideId');
           localStorage.removeItem('lastActiveRideTime');
         }, 5000);
-        return () => clearTimeout(timer);
       }
-    } else if (activeRideId) {
+    } else if (activeRideData && !activeRideData.ride && activeRideId) {
+      // Active ride ID exists locally but server returned null ride
       console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
+      console.log('🧹 Clearing stuck ride from localStorage');
+
       setActiveRideId(null);
       setRideValidated(false);
       localStorage.removeItem('activeRideId');
       localStorage.removeItem('lastActiveRideTime');
-      setShowOrdersList(true);
+      setShowOrdersList(true); // Show available orders again
     }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [activeRideData, activeRideId]);
 
-  // Handle active ride query errors
   useEffect(() => {
-    if (!activeRideError) return;
-    console.error('❌ Error fetching active ride:', activeRideError);
-    if (activeRideError.message?.includes('Authentication')) {
-      setActiveRideId(null);
-      setRideValidated(false);
-      localStorage.removeItem('activeRideId');
-    }
-  }, [activeRideError]);
-
-  // Mutations
-  const [acceptRide, { loading: accepting }] = useMutation(ACCEPT_RIDE, {
-    onCompleted: (data) => {
-      if (data?.acceptRide) {
-        const rideId = data.acceptRide.id || data.acceptRide.rideId;
-        console.log('✅ Ride accepted successfully:', rideId);
-
-        setActiveRideId(rideId);
-        setRideValidated(true);
-        setShowOrdersList(false);
-
-        // Persist to localStorage
-        localStorage.setItem('activeRideId', rideId);
-        localStorage.setItem('lastActiveRideTime', Date.now().toString());
+    if (activeRideError) {
+      console.error('❌ Error fetching active ride:', activeRideError);
+      setRideErrorCount(prev => prev + 1);
+      // Only clear on auth errors or after many failures
+      if (activeRideError.message?.includes('Authentication') || rideErrorCount >= 4) {
+        console.error('🔐 Auth error or too many errors, clearing ride');
+        setActiveRideId(null);
+        setRideValidated(false);
+        localStorage.removeItem('activeRideId');
+        setRideErrorCount(0);
       }
-    },
-    onError: (error) => {
-      console.error('❌ Accept ride error:', error);
-      setError(error.message || 'Failed to accept ride');
-      setTimeout(() => setError(null), 5000);
     }
-  });
+  }, [activeRideError, rideErrorCount]);
 
-  const [updateRideStatus, { loading: updating }] = useMutation(UPDATE_RIDE_STATUS, {
-    onCompleted: () => {
-      refetchActiveRide();
-    },
-    onError: (error) => {
-      setError(error.message);
-      setTimeout(() => setError(null), 5000);
+  // Handle acceptRide mutation result
+  useEffect(() => {
+    if (acceptRideData?.acceptRide) {
+      const rideId = acceptRideData.acceptRide.id || acceptRideData.acceptRide.rideId;
+      console.log('✅ Ride accepted successfully:', rideId);
+
+      setActiveRideId(rideId);
+      setRideValidated(true);
+      setShowOrdersList(false);
+
+      // Persist to localStorage
+      localStorage.setItem('activeRideId', rideId);
+      localStorage.setItem('lastActiveRideTime', Date.now().toString());
     }
-  });
+  }, [acceptRideData]);
+
+  useEffect(() => {
+    if (acceptRideError) {
+      console.error('❌ Accept ride error:', acceptRideError);
+      setError(acceptRideError.message || 'Failed to accept ride');
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [acceptRideError]);
+
+  // Handle updateRideStatus mutation result
+  useEffect(() => {
+    if (updateRideStatusData) {
+      refetchActiveRide();
+    }
+  }, [updateRideStatusData, refetchActiveRide]);
+
+  useEffect(() => {
+    if (updateRideStatusError) {
+      setError(updateRideStatusError.message);
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [updateRideStatusError]);
 
   // Redirect to login if not authenticated (but not while loading)
   useEffect(() => {
@@ -155,6 +178,13 @@ export default function Home({ user, loading }) {
       }
     }
   }, [user, activeRideId]);
+
+  // Register service worker for FCM on mount
+  useEffect(() => {
+    if (user) {
+      registerMessagingSW();
+    }
+  }, [user]);
 
   // Auto-toggle online if ride becomes active/inactive
   useEffect(() => {
@@ -215,10 +245,24 @@ export default function Home({ user, loading }) {
 
     if (user) {
       try {
-        await setDoc(doc(db, 'riders', user.uid), {
+        const updateData = {
           available: newStatus,
           updatedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        // Register FCM token when going online
+        if (newStatus === true) {
+          console.log('📱 Rider going online, registering FCM token...');
+          const fcmToken = await requestAndGetFcmToken();
+          if (fcmToken) {
+            updateData.fcmToken = fcmToken;
+            console.log('✅ FCM token registered');
+          } else {
+            console.warn('⚠️ Failed to get FCM token - notifications may not work');
+          }
+        }
+
+        await setDoc(doc(db, 'riders', user.uid), updateData, { merge: true });
       } catch (error) {
         console.error('Error updating rider status:', error);
       }
