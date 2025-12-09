@@ -43,7 +43,6 @@ export default function DebugPage() {
   });
 
   const { data: profileData, loading: profileLoading, error: profileError } = useQuery(GET_RIDER_PROFILE, {
-    skip: !authUser,
     fetchPolicy: 'network-only'
   });
 
