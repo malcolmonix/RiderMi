@@ -149,21 +149,16 @@ export default function DebugPage() {
         <h2>🏍️ Current User Profile</h2>
         {profileLoading && <div>Loading profile...</div>}
         {profileError && <div style={{ color: '#ff0000' }}>Error: {profileError.message}</div>}
-        {profileData?.me && (
+        {profileData?.me ? (
           <div style={{ marginTop: '10px', fontSize: '14px' }}>
             <div><strong>ID:</strong> {profileData.me.id}</div>
             <div><strong>Display Name:</strong> {profileData.me.displayName || 'N/A'}</div>
             <div><strong>Email:</strong> {profileData.me.email}</div>
             <div><strong>Phone:</strong> {profileData.me.phoneNumber || 'N/A'}</div>
           </div>
-        ) : (
+        ) : !profileLoading && !profileError ? (
           <div style={{ color: '#ffaa00' }}>No profile data</div>
-        )}
-          </div>
-        )}
-        {!profileLoading && !profileError && !profileData?.riderProfile && (
-          <div style={{ color: '#ffaa00' }}>No rider profile found</div>
-        )}
+        ) : null}
       </section>
 
       {/* Available Rides */}
