@@ -54,6 +54,8 @@ export default function Home({ user, loading }) {
 
   // Handle activeRideData and activeRideError from GET_RIDE query
   useEffect(() => {
+    let timer;
+    
     if (activeRideData?.ride) {
       console.log('🚗 Active ride updated:', activeRideData.ride.status);
       setRideValidated(true);
@@ -63,13 +65,12 @@ export default function Home({ user, loading }) {
       if (activeRideData.ride.status === 'COMPLETED' || activeRideData.ride.status === 'CANCELLED') {
         console.log('✅ SERVER CONFIRMED: Ride finished with status:', activeRideData.ride.status);
         // Wait a moment for UI to show completion state before clearing
-        const timer = setTimeout(() => {
+        timer = setTimeout(() => {
           setActiveRideId(null);
           setRideValidated(false);
           localStorage.removeItem('activeRideId');
           localStorage.removeItem('lastActiveRideTime');
         }, 5000);
-        return () => clearTimeout(timer);
       }
     } else if (activeRideData && !activeRideData.ride && activeRideId) {
       // Active ride ID exists locally but server returned null ride
@@ -82,6 +83,10 @@ export default function Home({ user, loading }) {
       localStorage.removeItem('lastActiveRideTime');
       setShowOrdersList(true); // Show available orders again
     }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [activeRideData, activeRideId]);
 
   useEffect(() => {
