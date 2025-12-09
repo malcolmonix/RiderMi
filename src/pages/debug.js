@@ -18,13 +18,12 @@ const AVAILABLE_RIDES = gql`
 `;
 
 const GET_RIDER_PROFILE = gql`
-  query RiderProfile {
-    riderProfile {
+  query Me {
+    me {
       id
-      name
       email
-      phone
-      isOnline
+      displayName
+      phoneNumber
     }
   }
 `;
@@ -147,18 +146,19 @@ export default function DebugPage() {
 
       {/* Rider Profile */}
       <section style={{ marginTop: '20px', padding: '15px', background: '#2a2a2a', borderRadius: '8px' }}>
-        <h2>🏍️ Rider Profile</h2>
+        <h2>🏍️ Current User Profile</h2>
         {profileLoading && <div>Loading profile...</div>}
         {profileError && <div style={{ color: '#ff0000' }}>Error: {profileError.message}</div>}
-        {profileData?.riderProfile && (
+        {profileData?.me && (
           <div style={{ marginTop: '10px', fontSize: '14px' }}>
-            <div><strong>ID:</strong> {profileData.riderProfile.id}</div>
-            <div><strong>Name:</strong> {profileData.riderProfile.name}</div>
-            <div><strong>Email:</strong> {profileData.riderProfile.email}</div>
-            <div><strong>Phone:</strong> {profileData.riderProfile.phone || 'N/A'}</div>
-            <div><strong>Online Status:</strong> <span style={{ color: profileData.riderProfile.isOnline ? '#00ff00' : '#ff0000' }}>
-              {profileData.riderProfile.isOnline ? 'ONLINE' : 'OFFLINE'}
-            </span></div>
+            <div><strong>ID:</strong> {profileData.me.id}</div>
+            <div><strong>Display Name:</strong> {profileData.me.displayName || 'N/A'}</div>
+            <div><strong>Email:</strong> {profileData.me.email}</div>
+            <div><strong>Phone:</strong> {profileData.me.phoneNumber || 'N/A'}</div>
+          </div>
+        ) : (
+          <div style={{ color: '#ffaa00' }}>No profile data</div>
+        )}
           </div>
         )}
         {!profileLoading && !profileError && !profileData?.riderProfile && (
