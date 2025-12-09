@@ -50,8 +50,16 @@ export default function DebugPage() {
   useEffect(() => {
     // Check Firebase Auth
     const auth = getAuth();
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setAuthUser(user);
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          console.log('🔐 Firebase token obtained:', token.substring(0, 50) + '...');
+        } catch (e) {
+          console.error('❌ Failed to get token:', e);
+        }
+      }
       setConnectionStatus(prev => ({
         ...prev,
         firebase: user ? 'connected' : 'not authenticated'
@@ -203,6 +211,45 @@ export default function DebugPage() {
         <div style={{ marginTop: '10px', fontSize: '14px' }}>
           <div><strong>Link URI:</strong> {apolloClient.link?.options?.uri || 'N/A'}</div>
           <div><strong>Cache Size:</strong> {Object.keys(apolloClient.cache.data.data).length} entries</div>
+        </div>
+      </section>
+
+      {/* Manual GraphQL Test */}
+      <section style={{ marginTop: '20px', padding: '15px', background: '#2a2a2a', borderRadius: '8px' }}>
+        <h2>🔬 Manual GraphQL Test</h2>
+        <div style={{ marginTop: '10px' }}>
+          <button
+            onClick={async () => {
+              if (!authUser) {
+                alert('Not authenticated');
+                return;
+              }
+              const token = await authUser.getIdToken();
+              const response = await fetch('https://food-delivery-api-indol.vercel.app/graphql', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  query: '{ me { id email displayName phoneNumber } }'
+                })
+              });
+              const result = await response.json();
+              console.log('Manual GraphQL test result:', result);
+              alert(JSON.stringify(result, null, 2));
+            }}
+            style={{
+              padding: '8px 16px',
+              background: '#007bff',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Test Me Query with Token
+          </button>
         </div>
       </section>
 
