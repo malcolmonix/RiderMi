@@ -34,14 +34,18 @@ export default function History({ user, loading }) {
   // Fetch rider history from API
   const { data, loading: historyLoading, error } = useQuery(GET_RIDER_HISTORY, {
     skip: !user,
-    fetchPolicy: 'network-only', // Always get fresh history
-    onError: (error) => {
+    fetchPolicy: 'network-only' // Always get fresh history
+  });
+
+  // Handle query errors with useEffect
+  useEffect(() => {
+    if (error) {
       console.error('❌ Error fetching rider history:', error);
       console.error('Error details:', error.message);
       console.error('GraphQL errors:', error.graphQLErrors);
       console.error('Network error:', error.networkError);
     }
-  });
+  }, [error]);
 
   const orders = data?.riderRides || [];
 
