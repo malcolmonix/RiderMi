@@ -24,56 +24,77 @@ export default function Home({ user, loading }) {
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
     skip: !user || !isOnline,
-    pollInterval: isOnline && user ? 10000 : 0, // Poll every 10 seconds when online
-    onError: (error) => {
-      console.error('❌ Error fetching available rides:', error);
-      setError(`Failed to load rides: ${error.message}`);
-      setTimeout(() => setError(null), 5000);
-    }
+    pollInterval: isOnline && user ? 10000 : 0 // Poll every 10 seconds when online
   });
 
   // Query active ride details
   // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
-  const { data: activeRideData, refetch: refetchActiveRide } = useQuery(GET_RIDE, {
+  const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
     pollInterval: activeRideId && rideErrorCount < 5 ? 5000 : 0, // Stop polling after 5 errors
     fetchPolicy: 'cache-and-network', // Use cache but always fetch network
-    notifyOnNetworkStatusChange: true,
-    onCompleted: (data) => {
-      if (data?.ride) {
-        console.log('🚗 Active ride updated:', data.ride.status);
-        setRideValidated(true);
-        setRideErrorCount(0); // Reset error count on success
+    notifyOnNetworkStatusChange: true
+  });
 
-        // ONLY clear when server confirms ride is finished
-        if (data.ride.status === 'COMPLETED' || data.ride.status === 'CANCELLED') {
-          console.log('✅ SERVER CONFIRMED: Ride finished with status:', data.ride.status);
-          // Wait a moment for UI to show completion state before clearing
-          setTimeout(() => {
-            setActiveRideId(null);
-            setRideValidated(false);
-            localStorage.removeItem('activeRideId');
-            localStorage.removeItem('lastActiveRideTime');
-          }, 5000);
-        }
-      } else if (!data?.ride && activeRideId) {
-        // Active ride ID exists locally but server returned null ride
-        console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
-        console.log('🧹 Clearing stuck ride from localStorage');
+  // Mutations
+  const [acceptRide, { loading: accepting, data: acceptRideData, error: acceptRideError }] = useMutation(ACCEPT_RIDE);
 
-        setActiveRideId(null);
-        setRideValidated(false);
-        localStorage.removeItem('activeRideId');
-        localStorage.removeItem('lastActiveRideTime');
-        setShowOrdersList(true); // Show available orders again
+  const [updateRideStatus, { loading: updating, data: updateRideStatusData, error: updateRideStatusError }] = useMutation(UPDATE_RIDE_STATUS);
+
+  // Handle ridesError from GET_AVAILABLE_RIDES query
+  useEffect(() => {
+    if (ridesError) {
+      console.error('❌ Error fetching available rides:', ridesError);
+      setError(`Failed to load rides: ${ridesError.message}`);
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [ridesError]);
+
+  // Handle activeRideData and activeRideError from GET_RIDE query
+  useEffect(() => {
+    let timer;
+    
+    if (activeRideData?.ride) {
+      console.log('🚗 Active ride updated:', activeRideData.ride.status);
+      setRideValidated(true);
+      setRideErrorCount(0); // Reset error count on success
+
+      // ONLY clear when server confirms ride is finished
+      if (activeRideData.ride.status === 'COMPLETED' || activeRideData.ride.status === 'CANCELLED') {
+        console.log('✅ SERVER CONFIRMED: Ride finished with status:', activeRideData.ride.status);
+        // Wait a moment for UI to show completion state before clearing
+        timer = setTimeout(() => {
+          setActiveRideId(null);
+          setRideValidated(false);
+          localStorage.removeItem('activeRideId');
+          localStorage.removeItem('lastActiveRideTime');
+        }, 5000);
       }
-    },
-    onError: (error) => {
-      console.error('❌ Error fetching active ride:', error);
+    } else if (activeRideData && !activeRideData.ride && activeRideId) {
+      // Active ride ID exists locally but server returned null ride
+      console.warn('⚠️ Active ride returned null from server. rideId:', activeRideId);
+      console.log('🧹 Clearing stuck ride from localStorage');
+
+      setActiveRideId(null);
+      setRideValidated(false);
+      localStorage.removeItem('activeRideId');
+      localStorage.removeItem('lastActiveRideTime');
+      setShowOrdersList(true); // Show available orders again
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeRideData, activeRideId]);
+
+  useEffect(() => {
+    if (activeRideError) {
+      console.error('❌ Error fetching active ride:', activeRideError);
       setRideErrorCount(prev => prev + 1);
       // Only clear on auth errors or after many failures
-      if (error.message?.includes('Authentication') || rideErrorCount >= 4) {
+      if (activeRideError.message?.includes('Authentication') || rideErrorCount >= 4) {
         console.error('🔐 Auth error or too many errors, clearing ride');
         setActiveRideId(null);
         setRideValidated(false);
@@ -81,40 +102,47 @@ export default function Home({ user, loading }) {
         setRideErrorCount(0);
       }
     }
-  });
+  }, [activeRideError, rideErrorCount]);
 
-  // Mutations
-  const [acceptRide, { loading: accepting }] = useMutation(ACCEPT_RIDE, {
-    onCompleted: (data) => {
-      if (data?.acceptRide) {
-        const rideId = data.acceptRide.id || data.acceptRide.rideId;
-        console.log('✅ Ride accepted successfully:', rideId);
+  // Handle acceptRide mutation result
+  useEffect(() => {
+    if (acceptRideData?.acceptRide) {
+      const rideId = acceptRideData.acceptRide.id || acceptRideData.acceptRide.rideId;
+      console.log('✅ Ride accepted successfully:', rideId);
 
-        setActiveRideId(rideId);
-        setRideValidated(true);
-        setShowOrdersList(false);
+      setActiveRideId(rideId);
+      setRideValidated(true);
+      setShowOrdersList(false);
 
-        // Persist to localStorage
-        localStorage.setItem('activeRideId', rideId);
-        localStorage.setItem('lastActiveRideTime', Date.now().toString());
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Accept ride error:', error);
-      setError(error.message || 'Failed to accept ride');
-      setTimeout(() => setError(null), 5000);
+      // Persist to localStorage
+      localStorage.setItem('activeRideId', rideId);
+      localStorage.setItem('lastActiveRideTime', Date.now().toString());
     }
-  });
+  }, [acceptRideData]);
 
-  const [updateRideStatus, { loading: updating }] = useMutation(UPDATE_RIDE_STATUS, {
-    onCompleted: () => {
+  useEffect(() => {
+    if (acceptRideError) {
+      console.error('❌ Accept ride error:', acceptRideError);
+      setError(acceptRideError.message || 'Failed to accept ride');
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [acceptRideError]);
+
+  // Handle updateRideStatus mutation result
+  useEffect(() => {
+    if (updateRideStatusData) {
       refetchActiveRide();
-    },
-    onError: (error) => {
-      setError(error.message);
-      setTimeout(() => setError(null), 5000);
     }
-  });
+  }, [updateRideStatusData, refetchActiveRide]);
+
+  useEffect(() => {
+    if (updateRideStatusError) {
+      setError(updateRideStatusError.message);
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [updateRideStatusError]);
 
   // Redirect to login if not authenticated (but not while loading)
   useEffect(() => {
