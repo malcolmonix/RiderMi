@@ -7,7 +7,6 @@ export default function BottomNav({ activeTab = 'home' }) {
   const tabs = [
     { id: 'home', label: 'Home', icon: '🏠', href: '/' },
     { id: 'earnings', label: 'Earnings', icon: '💰', href: '/earnings' },
-    { id: 'history', label: 'History', icon: '📋', href: '/history' },
     { id: 'profile', label: 'Profile', icon: '👤', href: '/profile' },
   ];
 
@@ -18,11 +17,10 @@ export default function BottomNav({ activeTab = 'home' }) {
           <Link
             key={tab.id}
             href={tab.href}
-            className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${
-              activeTab === tab.id
+            className={`flex flex-col items-center py-2 px-4 rounded-xl transition-colors ${activeTab === tab.id
                 ? 'text-black'
                 : 'text-gray-400 hover:text-gray-600'
-            }`}
+              }`}
           >
             <span className="text-xl mb-1">{tab.icon}</span>
             <span className={`text-xs ${activeTab === tab.id ? 'font-bold' : ''}`}>

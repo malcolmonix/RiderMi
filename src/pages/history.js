@@ -127,9 +127,26 @@ export default function History({ user, loading }) {
 
               {/* Footer */}
               <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                <p className="text-sm text-gray-500">
-                  {formatDate(order.createdAt)}
-                </p>
+                <div>
+                  <p className="text-sm text-gray-500">
+                    {formatDate(order.createdAt)}
+                  </p>
+                  {/* Rating Display */}
+                  {order.status === 'COMPLETED' && (
+                    <div className="flex items-center gap-1 mt-1">
+                      {order.rating ? (
+                        <>
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className={`text-sm ${i < order.rating ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+                          ))}
+                          <span className="text-xs text-gray-500 ml-1">({order.rating})</span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">No rating yet</span>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <p className="font-bold text-green-600">
                   ₦{order.fare ? order.fare.toLocaleString() : '0'}
                 </p>

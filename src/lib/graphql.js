@@ -117,7 +117,30 @@ export const GET_RIDER_HISTORY = gql`
       pickupAddress
       dropoffAddress
       fare
+      rating
       createdAt
+      updatedAt
+    }
+  }
+`;
+
+// Get rider earnings for a specific period
+export const GET_RIDER_EARNINGS = gql`
+  query GetRiderEarnings($periodDays: Int) {
+    riderEarnings(periodDays: $periodDays) {
+      totalEarnings
+      totalRides
+      averagePerRide
+      rides {
+        id
+        rideId
+        pickupAddress
+        dropoffAddress
+        fare
+        rating
+        createdAt
+        updatedAt
+      }
     }
   }
 `;

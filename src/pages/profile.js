@@ -13,7 +13,9 @@ export default function Profile({ user, loading: pageLoading }) {
     displayName: '',
     phoneNumber: '',
     vehicle: '',
-    licensePlate: ''
+    licensePlate: '',
+    averageRating: 0,
+    totalRatings: 0
   });
 
   const showLoading = () => (
@@ -42,14 +44,18 @@ export default function Profile({ user, loading: pageLoading }) {
             displayName: data.displayName || user.displayName || '',
             phoneNumber: data.phoneNumber || user.phoneNumber || '',
             vehicle: data.vehicle || '',
-            licensePlate: data.licensePlate || ''
+            licensePlate: data.licensePlate || '',
+            averageRating: data.averageRating || 0,
+            totalRatings: data.totalRatings || 0
           });
         } else {
           setProfile({
             displayName: user.displayName || '',
             phoneNumber: user.phoneNumber || '',
             vehicle: '',
-            licensePlate: ''
+            licensePlate: '',
+            averageRating: 0,
+            totalRatings: 0
           });
         }
       } catch (error) {
@@ -70,9 +76,12 @@ export default function Profile({ user, loading: pageLoading }) {
         displayName: profile.displayName
       });
 
-      // Update Firestore profile
+      // Update Firestore profile (preserve rating fields)
       await setDoc(doc(db, 'riders', user.uid), {
-        ...profile,
+        displayName: profile.displayName,
+        phoneNumber: profile.phoneNumber,
+        vehicle: profile.vehicle,
+        licensePlate: profile.licensePlate,
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
@@ -87,6 +96,8 @@ export default function Profile({ user, loading: pageLoading }) {
   const handleSignOut = async () => {
     try {
       if (user) {
+        // Clear online status on logout
+        localStorage.removeItem('riderOnlineStatus');
         await setDoc(doc(db, 'riders', user.uid), {
           available: false,
           updatedAt: new Date().toISOString()
@@ -97,6 +108,24 @@ export default function Profile({ user, loading: pageLoading }) {
     } catch (error) {
       console.error('Sign out error:', error);
     }
+  };
+
+  // Render star rating
+  const renderStars = (rating) => {
+    const fullStars = Math.floor(rating);
+    const hasHalf = rating % 1 >= 0.5;
+    const stars = [];
+
+    for (let i = 0; i < 5; i++) {
+      if (i < fullStars) {
+        stars.push(<span key={i} className="text-yellow-400">★</span>);
+      } else if (i === fullStars && hasHalf) {
+        stars.push(<span key={i} className="text-yellow-400">★</span>);
+      } else {
+        stars.push(<span key={i} className="text-gray-300">★</span>);
+      }
+    }
+    return stars;
   };
 
   if (!user) return showLoading();
@@ -115,9 +144,9 @@ export default function Profile({ user, loading: pageLoading }) {
           <div className="flex flex-col items-center mb-6">
             <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mb-4">
               {user.photoURL ? (
-                <img 
-                  src={user.photoURL} 
-                  alt="Profile" 
+                <img
+                  src={user.photoURL}
+                  alt="Profile"
                   className="w-24 h-24 rounded-full object-cover"
                 />
               ) : (
@@ -128,6 +157,23 @@ export default function Profile({ user, loading: pageLoading }) {
               {profile.displayName || 'Rider'}
             </p>
             <p className="text-sm text-gray-500">{user.email}</p>
+
+            {/* Rider Rating Display */}
+            <div className="mt-3 flex flex-col items-center">
+              <div className="flex items-center gap-1 text-xl">
+                {renderStars(profile.averageRating)}
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                {profile.totalRatings > 0 ? (
+                  <span>
+                    <span className="font-semibold text-gray-700">{profile.averageRating.toFixed(1)}</span>
+                    <span className="text-gray-400"> • {profile.totalRatings} rating{profile.totalRatings !== 1 ? 's' : ''}</span>
+                  </span>
+                ) : (
+                  <span className="text-gray-400">No ratings yet</span>
+                )}
+              </p>
+            </div>
           </div>
 
           {/* Profile Form */}
@@ -219,11 +265,12 @@ export default function Profile({ user, loading: pageLoading }) {
 
       {/* Menu Items */}
       <div className="mx-4 mt-6 space-y-2">
-        <MenuItem icon="📊" label="Performance Stats" />
-        <MenuItem icon="🔔" label="Notifications" />
-        <MenuItem icon="❓" label="Help & Support" />
-        <MenuItem icon="📄" label="Terms of Service" />
-        
+        <MenuItem icon="📋" label="Ride History" onClick={() => router.push('/history')} />
+        <MenuItem icon="📊" label="Performance Stats" onClick={() => router.push('/stats')} />
+        <MenuItem icon="🔔" label="Notifications" onClick={() => router.push('/notifications')} />
+        <MenuItem icon="❓" label="Help & Support" onClick={() => window.open('mailto:support@delivermi.com')} />
+        <MenuItem icon="📄" label="Terms of Service" onClick={() => window.open('/terms', '_blank')} />
+
         <button
           onClick={handleSignOut}
           className="w-full flex items-center gap-3 p-4 bg-white rounded-xl text-red-600 hover:bg-red-50 transition-colors"

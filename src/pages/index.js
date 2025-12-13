@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useMutation, useQuery } from '@apollo/client';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth, db, registerMessagingSW, requestAndGetFcmToken } from '../lib/firebase';
 import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
@@ -11,9 +11,17 @@ import RideCard from '../components/RideCard';
 import ActiveRidePanel from '../components/ActiveRidePanel';
 import BottomNav from '../components/BottomNav';
 
+// Helper to get initial online status from localStorage (for instant UI)
+const getInitialOnlineStatus = () => {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('riderOnlineStatus') === 'true';
+};
+
 export default function Home({ user, loading }) {
   const router = useRouter();
-  const [isOnline, setIsOnline] = useState(false);
+  // Initialize from localStorage for instant UI restoration
+  const [isOnline, setIsOnline] = useState(getInitialOnlineStatus);
+  const [onlineStatusSynced, setOnlineStatusSynced] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [activeRideId, setActiveRideId] = useState(null);
   const [showOrdersList, setShowOrdersList] = useState(true);
@@ -42,6 +50,35 @@ export default function Home({ user, loading }) {
 
   const [updateRideStatus, { loading: updating, data: updateRideStatusData, error: updateRideStatusError }] = useMutation(UPDATE_RIDE_STATUS);
 
+  // INDUSTRY STANDARD: Sync online status with Firestore on mount
+  // This ensures the UI reflects the true server state
+  useEffect(() => {
+    if (!user || onlineStatusSynced) return;
+
+    const syncOnlineStatus = async () => {
+      try {
+        const riderDocRef = doc(db, 'riders', user.uid);
+        const riderDoc = await getDoc(riderDocRef);
+
+        if (riderDoc.exists()) {
+          const serverOnlineStatus = riderDoc.data()?.available === true;
+          console.log('🔄 Synced online status from server:', serverOnlineStatus);
+
+          // Update localStorage and state to match server
+          localStorage.setItem('riderOnlineStatus', serverOnlineStatus.toString());
+          setIsOnline(serverOnlineStatus);
+        }
+
+        setOnlineStatusSynced(true);
+      } catch (error) {
+        console.error('Failed to sync online status:', error);
+        setOnlineStatusSynced(true); // Continue with localStorage value
+      }
+    };
+
+    syncOnlineStatus();
+  }, [user, onlineStatusSynced]);
+
   // Handle ridesError from GET_AVAILABLE_RIDES query
   useEffect(() => {
     if (ridesError) {
@@ -55,7 +92,7 @@ export default function Home({ user, loading }) {
   // Handle activeRideData and activeRideError from GET_RIDE query
   useEffect(() => {
     let timer;
-    
+
     if (activeRideData?.ride) {
       console.log('🚗 Active ride updated:', activeRideData.ride.status);
       setRideValidated(true);
@@ -83,7 +120,7 @@ export default function Home({ user, loading }) {
       localStorage.removeItem('lastActiveRideTime');
       setShowOrdersList(true); // Show available orders again
     }
-    
+
     return () => {
       if (timer) clearTimeout(timer);
     };
@@ -169,8 +206,7 @@ export default function Home({ user, loading }) {
       if (savedRideId && lastActiveTime > twoHoursAgo) {
         console.log('🔄 Attempting to restore active ride:', savedRideId);
         setActiveRideId(savedRideId);
-        setIsOnline(true);
-        // Validation will happen when query runs
+        // Don't force online here - let the synced status from Firestore determine
       } else if (savedRideId && lastActiveTime <= twoHoursAgo) {
         console.log('🧹 Clearing stale ride from localStorage (>2 hours old)');
         localStorage.removeItem('activeRideId');
@@ -186,11 +222,12 @@ export default function Home({ user, loading }) {
     }
   }, [user]);
 
-  // Auto-toggle online if ride becomes active/inactive
+  // Auto-toggle online if ride becomes active (ensures rider stays online during active ride)
   useEffect(() => {
     if (activeRideId && !isOnline) {
       console.log('🟢 Auto-going online - ride is active');
       setIsOnline(true);
+      localStorage.setItem('riderOnlineStatus', 'true');
     }
   }, [activeRideId, isOnline]);
 
@@ -230,7 +267,7 @@ export default function Home({ user, loading }) {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isOnline, user]);
 
-  // Toggle online status
+  // Toggle online status - persists to both localStorage AND Firestore
   const toggleOnline = async () => {
     const newStatus = !isOnline;
 
@@ -241,7 +278,9 @@ export default function Home({ user, loading }) {
       return;
     }
 
+    // Update local state and localStorage immediately for responsive UI
     setIsOnline(newStatus);
+    localStorage.setItem('riderOnlineStatus', newStatus.toString());
 
     if (user) {
       try {
@@ -263,8 +302,14 @@ export default function Home({ user, loading }) {
         }
 
         await setDoc(doc(db, 'riders', user.uid), updateData, { merge: true });
+        console.log(`✅ Rider status synced to server: ${newStatus ? 'ONLINE' : 'OFFLINE'}`);
       } catch (error) {
         console.error('Error updating rider status:', error);
+        // Revert on failure
+        setIsOnline(!newStatus);
+        localStorage.setItem('riderOnlineStatus', (!newStatus).toString());
+        setError('Failed to update online status');
+        setTimeout(() => setError(null), 3000);
       }
     }
   };
