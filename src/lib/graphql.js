@@ -58,6 +58,11 @@ export const GET_RIDE = gql`
       deliveryCode
       rating
       feedback
+      user {
+        displayName
+        phoneNumber
+        photoURL
+      }
       rider {
         id
         displayName

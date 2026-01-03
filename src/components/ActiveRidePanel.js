@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ChatOverlay from './ChatOverlay';
 import { formatDistance, formatDuration } from '../lib/mapbox';
 
 const RIDE_STATUSES = {
@@ -19,6 +20,8 @@ const getNextStatus = (current) => {
 export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus, loading }) {
   const [deliveryCode, setDeliveryCode] = useState('');
   const [codeError, setCodeError] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+
   const statusInfo = RIDE_STATUSES[ride.status] || { label: ride.status, icon: '🚗', color: 'gray' };
   const nextStatus = getNextStatus(ride.status);
   const isDeliveryStep = ride.status === 'ARRIVED_AT_DROPOFF';
@@ -33,6 +36,41 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
 
   return (
     <div className="space-y-4">
+      {/* Customer Info Card */}
+      {ride.user && (
+        <div className="bg-white border-2 border-black rounded-2xl p-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-xl overflow-hidden">
+              {ride.user.photoURL ? (
+                <img src={ride.user.photoURL} alt="User" className="w-full h-full object-cover" />
+              ) : (
+                '👤'
+              )}
+            </div>
+            <div>
+              <p className="font-bold text-gray-900">{ride.user.displayName || 'Customer'}</p>
+              <p className="text-xs text-gray-500">{ride.user.phoneNumber || 'No phone'}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowChat(true)}
+              className="bg-black text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-800 transition-colors"
+            >
+              💬 Chat
+            </button>
+            {ride.user.phoneNumber && (
+              <a
+                href={`tel:${ride.user.phoneNumber}`}
+                className="bg-gray-100 text-gray-900 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-200"
+              >
+                📞 Call
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Ride Header */}
       <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-4 text-white">
         <h2 className="text-xl font-bold mb-2">Ride #{ride.rideId?.slice(-6) || 'N/A'}</h2>
@@ -132,6 +170,16 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
           <p className="text-green-700 font-bold">🎉 Ride Completed!</p>
           <p className="text-sm text-green-600 mt-1">Thank you for using our service</p>
         </div>
+      )}
+
+      {/* Chat Overlay */}
+      {showChat && (
+        <ChatOverlay
+          rideId={ride.id}
+          currentUserId={ride.riderId} // Assuming current user is rider
+          otherUserName={ride.user?.displayName || 'Customer'}
+          onClose={() => setShowChat(false)}
+        />
       )}
     </div>
   );

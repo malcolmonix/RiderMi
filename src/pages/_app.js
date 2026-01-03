@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, registerMessagingSW, requestAndGetFcmToken, onMessageHandler, db } from '../lib/firebase';
 import { apolloClient } from '../lib/apollo';
 import { doc, setDoc } from 'firebase/firestore';
+import GlobalRideListener from '../components/GlobalRideListener';
 import '../styles/globals.css';
 
 function MyApp({ Component, pageProps }) {
@@ -27,7 +28,7 @@ function MyApp({ Component, pageProps }) {
         try {
           await registerMessagingSW();
           const token = await requestAndGetFcmToken();
-          
+
           if (token) {
             // Store FCM token in Firestore for rider notifications
             // Note: We don't set available here - riders must explicitly go online
@@ -70,6 +71,7 @@ function MyApp({ Component, pageProps }) {
 
   return (
     <ApolloProvider client={apolloClient}>
+      <GlobalRideListener user={user} />
       <Component {...pageProps} user={user} loading={loading} />
     </ApolloProvider>
   );
