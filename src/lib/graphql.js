@@ -2,6 +2,45 @@ import { gql } from '@apollo/client';
 
 // Queries - Compatible with food-delivery-api
 
+// Get rider's active ride (sync on refresh)
+export const GET_ACTIVE_RIDER_RIDE = gql`
+  query GetActiveRiderRide {
+    activeRiderRide {
+      id
+      rideId
+      userId
+      riderId
+      status
+      pickupAddress
+      pickupLat
+      pickupLng
+      dropoffAddress
+      dropoffLat
+      dropoffLng
+      fare
+      distance
+      duration
+      paymentMethod
+      deliveryCode
+      rating
+      feedback
+      user {
+        displayName
+        phoneNumber
+        photoURL
+      }
+      rider {
+        id
+        displayName
+        phoneNumber
+        photoURL
+      }
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 // Get available rides for riders (unassigned rides)
 export const GET_AVAILABLE_RIDES = gql`
   query GetAvailableRides {

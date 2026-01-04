@@ -1,50 +1,74 @@
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useQuery, useMutation, gql } from '@apollo/client';
+
+const GET_MESSAGES = gql`
+  query GetMessages($rideId: ID!) {
+    messages(rideId: $rideId) {
+      id
+      senderId
+      text
+      createdAt
+    }
+  }
+`;
+
+const SEND_MESSAGE = gql`
+  mutation SendMessage($rideId: ID!, $text: String!) {
+    sendMessage(rideId: $rideId, text: $text) {
+      id
+      senderId
+      text
+      createdAt
+    }
+  }
+`;
 
 export default function ChatOverlay({ rideId, currentUserId, otherUserName, onClose }) {
-    const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
 
-    // Listen for messages
-    useEffect(() => {
-        if (!rideId) return;
+    const { data, loading, refetch } = useQuery(GET_MESSAGES, {
+        variables: { rideId },
+        pollInterval: 1000,           // Poll every 1s for real-time feel
+        fetchPolicy: 'network-only',  // Always network for real-time chat
+        skip: !rideId,
+        notifyOnNetworkStatusChange: true,
+        onError: (error) => {
+            console.error('Chat query error:', error);
+        }
+    });
 
-        const messagesRef = collection(db, 'rides', rideId, 'messages');
-        const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    const messages = data?.messages || [];
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const msgs = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setMessages(msgs);
-            scrollToBottom();
-        }, (error) => {
-            console.error('Chat snapshot error:', error);
-        });
-
-        return () => unsubscribe();
-    }, [rideId]);
+    const [sendMessageMutation] = useMutation(SEND_MESSAGE);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
     const handleSend = async (e) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() || !rideId) return;
 
         try {
-            await addDoc(collection(db, 'rides', rideId, 'messages'), {
-                text: newMessage,
-                senderId: currentUserId,
-                createdAt: serverTimestamp(),
+            const textToSend = newMessage;
+            setNewMessage(''); // Clear immediately for UX
+
+            await sendMessageMutation({
+                variables: {
+                    rideId,
+                    text: textToSend
+                }
             });
-            setNewMessage('');
+            refetch(); // Immediate refetch to show own message faster
         } catch (error) {
             console.error('Error sending message:', error);
+            // Revert message text if send fails? (Optional)
+            setNewMessage(newMessage);
         }
     };
 
@@ -67,7 +91,12 @@ export default function ChatOverlay({ rideId, currentUserId, otherUserName, onCl
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                    {messages.length === 0 && (
+                    {loading && messages.length === 0 && (
+                        <div className="flex justify-center mt-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                        </div>
+                    )}
+                    {!loading && messages.length === 0 && (
                         <p className="text-center text-gray-500 mt-10">No messages yet. Say hello! 👋</p>
                     )}
                     {messages.map((msg) => {
@@ -84,8 +113,8 @@ export default function ChatOverlay({ rideId, currentUserId, otherUserName, onCl
                                         }`}
                                 >
                                     <p>{msg.text}</p>
-                                    <p className={`text-[10px] mt-1 ${isMe ? 'text-gray-400' : 'text-gray-400'}`}>
-                                        {msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    <p className={`text-[10px] mt-1 ${isMe ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
                                     </p>
                                 </div>
                             </div>

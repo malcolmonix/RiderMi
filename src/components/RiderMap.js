@@ -176,8 +176,8 @@ export default function RiderMap({ currentLocation, activeRide, availableRides =
               anchor="center"
             >
               <div className={`px-3 py-2 rounded-lg shadow-lg text-xs font-bold ${['ACCEPTED', 'ARRIVED_AT_PICKUP'].includes(activeRide.status)
-                  ? 'bg-yellow-400 text-gray-900 ring-4 ring-yellow-200'
-                  : 'bg-gray-400 text-white'
+                ? 'bg-yellow-400 text-gray-900 ring-4 ring-yellow-200'
+                : 'bg-gray-400 text-white'
                 }`}>
                 📍 PICKUP
               </div>
@@ -190,8 +190,8 @@ export default function RiderMap({ currentLocation, activeRide, availableRides =
               anchor="center"
             >
               <div className={`px-3 py-2 rounded-lg shadow-lg text-xs font-bold ${['PICKED_UP', 'ARRIVED_AT_DROPOFF'].includes(activeRide.status)
-                  ? 'bg-red-400 text-white ring-4 ring-red-200'
-                  : 'bg-gray-400 text-white'
+                ? 'bg-red-400 text-white ring-4 ring-red-200'
+                : 'bg-gray-400 text-white'
                 }`}>
                 🏠 DROPOFF
               </div>
@@ -200,19 +200,47 @@ export default function RiderMap({ currentLocation, activeRide, availableRides =
         )}
       </Map>
 
-      {/* Recenter Button */}
-      {!isFollowing && currentLocation && (
-        <button
-          onClick={handleRecenter}
-          className="absolute bottom-32 right-4 bg-white p-3 rounded-full shadow-lg z-10 transition-transform active:scale-95 text-blue-600 border border-blue-100"
-          aria-label="Recenter map"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
-      )}
+      {/* Map Control Buttons */}
+      <div className="absolute bottom-32 right-4 flex flex-col gap-3 z-10">
+        {/* Recenter / Follow Button */}
+        {!isFollowing && currentLocation && (
+          <button
+            onClick={handleRecenter}
+            className="bg-white p-3 rounded-full shadow-lg transition-all active:scale-95 text-blue-600 border border-blue-100 flex items-center justify-center hover:bg-blue-50"
+            aria-label="Recenter map"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        )}
+
+        {/* Trip Focus Button - Only show when ride is active */}
+        {activeRide && (
+          <button
+            onClick={() => {
+              if (mapRef.current) {
+                const bounds = [
+                  [Math.min(currentLocation.lng, destinationCoords.lng), Math.min(currentLocation.lat, destinationCoords.lat)],
+                  [Math.max(currentLocation.lng, destinationCoords.lng), Math.max(currentLocation.lat, destinationCoords.lat)]
+                ];
+                mapRef.current.fitBounds(bounds, {
+                  padding: 100,
+                  duration: 1500
+                });
+                setIsFollowing(false); // Focus trip, stop follow "Me"
+              }
+            }}
+            className="bg-white p-3 rounded-full shadow-lg transition-all active:scale-95 text-gray-700 border border-gray-100 flex items-center justify-center hover:bg-gray-50"
+            aria-label="Show entire trip"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {/* Status Overlay */}
       {activeRide && destinationCoords && (

@@ -10,6 +10,7 @@ import '../styles/globals.css';
 function MyApp({ Component, pageProps }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     // If Firebase auth is not configured, skip auth state listener
@@ -22,6 +23,12 @@ function MyApp({ Component, pageProps }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setLoading(false);
+
+      // Restore online status from localStorage
+      if (currentUser) {
+        const savedStatus = localStorage.getItem('riderOnlineStatus') === 'true';
+        setIsOnline(savedStatus);
+      }
 
       // Set up push notifications when user is logged in
       if (currentUser && db) {
@@ -58,6 +65,28 @@ function MyApp({ Component, pageProps }) {
     return () => unsubscribe();
   }, []);
 
+  // Global toggle for online status
+  const toggleOnline = async () => {
+    if (!user) return;
+
+    const newStatus = !isOnline;
+    setIsOnline(newStatus);
+    localStorage.setItem('riderOnlineStatus', newStatus.toString());
+
+    try {
+      await setDoc(doc(db, 'riders', user.uid), {
+        available: newStatus,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      console.log(`✅ Global rider status synced: ${newStatus ? 'ONLINE' : 'OFFLINE'}`);
+    } catch (error) {
+      console.error('Error updating rider status globally:', error);
+      // Revert local state on failure
+      setIsOnline(!newStatus);
+      localStorage.setItem('riderOnlineStatus', (!newStatus).toString());
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -71,8 +100,14 @@ function MyApp({ Component, pageProps }) {
 
   return (
     <ApolloProvider client={apolloClient}>
-      <GlobalRideListener user={user} />
-      <Component {...pageProps} user={user} loading={loading} />
+      <GlobalRideListener user={user} isOnline={isOnline} />
+      <Component
+        {...pageProps}
+        user={user}
+        loading={loading}
+        isOnline={isOnline}
+        toggleOnline={toggleOnline}
+      />
     </ApolloProvider>
   );
 }

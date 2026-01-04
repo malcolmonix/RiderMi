@@ -4,23 +4,15 @@ import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth, db, registerMessagingSW, requestAndGetFcmToken } from '../lib/firebase';
-import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS } from '../lib/graphql';
+import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS, GET_ACTIVE_RIDER_RIDE } from '../lib/graphql';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
 import RideCard from '../components/RideCard';
 import ActiveRidePanel from '../components/ActiveRidePanel';
 import BottomNav from '../components/BottomNav';
 
-// Helper to get initial online status from localStorage (for instant UI)
-const getInitialOnlineStatus = () => {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem('riderOnlineStatus') === 'true';
-};
-
-export default function Home({ user, loading }) {
+export default function Home({ user, loading, isOnline, toggleOnline }) {
   const router = useRouter();
-  // Initialize from localStorage for instant UI restoration
-  const [isOnline, setIsOnline] = useState(getInitialOnlineStatus);
   const [onlineStatusSynced, setOnlineStatusSynced] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [activeRideId, setActiveRideId] = useState(null);
@@ -35,13 +27,33 @@ export default function Home({ user, loading }) {
     pollInterval: isOnline && user ? 10000 : 0 // Poll every 10 seconds when online
   });
 
-  // Query active ride details
-  // UBER/BOLT PATTERN: Never delete rides client-side. Server is source of truth.
+  // Query active ride details from server (Robust restoration)
+  const { data: serverActiveRideData, loading: loadingActiveRide } = useQuery(GET_ACTIVE_RIDER_RIDE, {
+    skip: !user,
+    pollInterval: 5000,
+    fetchPolicy: 'network-only' // Always check server for truth
+  });
+
+  // Watch for server active ride to sync state
+  useEffect(() => {
+    if (serverActiveRideData?.activeRiderRide) {
+      const serverRide = serverActiveRideData.activeRiderRide;
+      console.log('🔄 Synced active ride from server:', serverRide.rideId);
+
+      if (activeRideId !== serverRide.rideId) {
+        setActiveRideId(serverRide.rideId); // Use public ID for consistency
+        localStorage.setItem('activeRideId', serverRide.rideId);
+        setShowOrdersList(false);
+      }
+    }
+  }, [serverActiveRideData, activeRideId]);
+
+  // Specific ride details (for when we have an ID)
   const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
-    pollInterval: activeRideId && rideErrorCount < 5 ? 5000 : 0, // Stop polling after 5 errors
-    fetchPolicy: 'cache-and-network', // Use cache but always fetch network
+    pollInterval: activeRideId && rideErrorCount < 5 ? 3000 : 0,
+    fetchPolicy: 'cache-and-network',
     notifyOnNetworkStatusChange: true
   });
 
@@ -64,9 +76,11 @@ export default function Home({ user, loading }) {
           const serverOnlineStatus = riderDoc.data()?.available === true;
           console.log('🔄 Synced online status from server:', serverOnlineStatus);
 
-          // Update localStorage and state to match server
+          // Update localStorage to match server
           localStorage.setItem('riderOnlineStatus', serverOnlineStatus.toString());
-          setIsOnline(serverOnlineStatus);
+          // Note: We don't call setIsOnline here as it's managed globally in _app.js
+          // The Home component will receive the updated isOnline via props if we trigger a global sync
+          // However, for now, we just ensure the local storage is correct and set synced.
         }
 
         setOnlineStatusSynced(true);
@@ -226,8 +240,9 @@ export default function Home({ user, loading }) {
   useEffect(() => {
     if (activeRideId && !isOnline) {
       console.log('🟢 Auto-going online - ride is active');
-      setIsOnline(true);
       localStorage.setItem('riderOnlineStatus', 'true');
+      // Trigger global toggle to sync with Firestore
+      toggleOnline();
     }
   }, [activeRideId, isOnline]);
 
@@ -266,53 +281,6 @@ export default function Home({ user, loading }) {
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isOnline, user]);
-
-  // Toggle online status - persists to both localStorage AND Firestore
-  const toggleOnline = async () => {
-    const newStatus = !isOnline;
-
-    // Prevent going offline if ride is active
-    if (activeRide && newStatus === false) {
-      setError('❌ Cannot go offline during an active ride');
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    // Update local state and localStorage immediately for responsive UI
-    setIsOnline(newStatus);
-    localStorage.setItem('riderOnlineStatus', newStatus.toString());
-
-    if (user) {
-      try {
-        const updateData = {
-          available: newStatus,
-          updatedAt: new Date().toISOString()
-        };
-
-        // Register FCM token when going online
-        if (newStatus === true) {
-          console.log('📱 Rider going online, registering FCM token...');
-          const fcmToken = await requestAndGetFcmToken();
-          if (fcmToken) {
-            updateData.fcmToken = fcmToken;
-            console.log('✅ FCM token registered');
-          } else {
-            console.warn('⚠️ Failed to get FCM token - notifications may not work');
-          }
-        }
-
-        await setDoc(doc(db, 'riders', user.uid), updateData, { merge: true });
-        console.log(`✅ Rider status synced to server: ${newStatus ? 'ONLINE' : 'OFFLINE'}`);
-      } catch (error) {
-        console.error('Error updating rider status:', error);
-        // Revert on failure
-        setIsOnline(!newStatus);
-        localStorage.setItem('riderOnlineStatus', (!newStatus).toString());
-        setError('Failed to update online status');
-        setTimeout(() => setError(null), 3000);
-      }
-    }
-  };
 
   // Accept a ride
   const handleAcceptRide = async (ridePublicId) => {
@@ -407,7 +375,14 @@ export default function Home({ user, loading }) {
           {/* Online Toggle */}
           <div className="flex items-center gap-3 bg-white rounded-full px-4 py-2 shadow-lg">
             <button
-              onClick={toggleOnline}
+              onClick={async () => {
+                if (activeRide && isOnline) {
+                  setError('❌ Cannot go offline during an active ride');
+                  setTimeout(() => setError(null), 3000);
+                  return;
+                }
+                await toggleOnline();
+              }}
               className={`relative inline-flex w-14 h-7 rounded-full transition-colors duration-300 ${isOnline ? 'bg-green-500' : 'bg-gray-300'
                 }`}
             >

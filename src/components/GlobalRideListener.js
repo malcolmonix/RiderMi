@@ -6,25 +6,10 @@ import { useRouter } from 'next/router';
 // Simple notification sound
 const NOTIFICATION_SOUND_URL = 'https://cdn.freesound.org/previews/320/320655_5260872-lq.mp3';
 
-export default function GlobalRideListener({ user }) {
+export default function GlobalRideListener({ user, isOnline }) {
     const router = useRouter();
     const [previousRideCount, setPreviousRideCount] = useState(0);
-    const [isOnline, setIsOnline] = useState(false);
     const audioRef = useRef(null);
-
-    // Poll for online status from localStorage (synced with Home page)
-    useEffect(() => {
-        const checkStatus = () => {
-            if (typeof window !== 'undefined') {
-                const status = localStorage.getItem('riderOnlineStatus') === 'true';
-                setIsOnline(status);
-            }
-        };
-
-        checkStatus();
-        const interval = setInterval(checkStatus, 2000); // Check every 2s
-        return () => clearInterval(interval);
-    }, []);
 
     // Poll for available rides
     const { data } = useQuery(GET_AVAILABLE_RIDES, {

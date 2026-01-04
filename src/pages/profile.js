@@ -31,7 +31,10 @@ export default function Profile({ user, loading: pageLoading }) {
 
   useEffect(() => {
     if (pageLoading) return;
-    if (!user) return router.replace('/login');
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
 
     // Load profile from Firestore
     const loadProfile = async () => {
