@@ -342,7 +342,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className="h-[100dvh] flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
           <p className="text-gray-600">Loading RiderMi...</p>
@@ -359,7 +359,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   const activeRide = activeRideData?.ride;
 
   return (
-    <div className="h-screen w-screen relative overflow-hidden bg-gray-100">
+    <div className="h-[100dvh] w-screen relative overflow-hidden bg-gray-100">
       {/* Map */}
       <div className="absolute inset-0">
         <RiderMap
