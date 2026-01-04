@@ -435,6 +435,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
               currentLocation={currentLocation}
               onUpdateStatus={handleUpdateStatus}
               loading={updating}
+              user={user}
             />
           ) : isOnline ? (
             <div className="space-y-4">

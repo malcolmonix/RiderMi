@@ -134,8 +134,14 @@ export const ACCEPT_RIDE = gql`
       fare
       distance
       duration
+      duration
       createdAt
       updatedAt
+      user {
+        displayName
+        phoneNumber
+        photoURL
+      }
     }
   }
 `;
