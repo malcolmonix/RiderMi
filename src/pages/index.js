@@ -42,11 +42,13 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
 
       if (activeRideId !== serverRide.rideId) {
         setActiveRideId(serverRide.rideId); // Use public ID for consistency
-        localStorage.setItem('activeRideId', serverRide.rideId);
+        if (user) {
+          localStorage.setItem(`activeRideId_${user.uid}`, serverRide.rideId);
+        }
         setShowOrdersList(false);
       }
     }
-  }, [serverActiveRideData, activeRideId]);
+  }, [serverActiveRideData, activeRideId, user]);
 
   // Specific ride details (for when we have an ID)
   const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError } = useQuery(GET_RIDE, {
@@ -205,16 +207,16 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   // Persist active ride on page refresh
   useEffect(() => {
     if (user && activeRideId) {
-      localStorage.setItem('activeRideId', activeRideId);
-      localStorage.setItem('lastActiveRideTime', Date.now().toString());
+      localStorage.setItem(`activeRideId_${user.uid}`, activeRideId);
+      localStorage.setItem(`lastActiveRideTime_${user.uid}`, Date.now().toString());
     }
   }, [activeRideId, user]);
 
   // Restore active ride on mount with validation
   useEffect(() => {
     if (user && !activeRideId) {
-      const savedRideId = localStorage.getItem('activeRideId');
-      const lastActiveTime = parseInt(localStorage.getItem('lastActiveRideTime') || '0');
+      const savedRideId = localStorage.getItem(`activeRideId_${user.uid}`);
+      const lastActiveTime = parseInt(localStorage.getItem(`lastActiveRideTime_${user.uid}`) || '0');
       const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
 
       if (savedRideId && lastActiveTime > twoHoursAgo) {
@@ -223,8 +225,8 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
         // Don't force online here - let the synced status from Firestore determine
       } else if (savedRideId && lastActiveTime <= twoHoursAgo) {
         console.log('🧹 Clearing stale ride from localStorage (>2 hours old)');
-        localStorage.removeItem('activeRideId');
-        localStorage.removeItem('lastActiveRideTime');
+        localStorage.removeItem(`activeRideId_${user.uid}`);
+        localStorage.removeItem(`lastActiveRideTime_${user.uid}`);
       }
     }
   }, [user, activeRideId]);
@@ -360,6 +362,11 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
 
   return (
     <div className="h-[100dvh] w-screen relative overflow-hidden bg-gray-100">
+      {/* Debug Header */}
+      <div className="bg-black/80 text-white text-[10px] px-2 py-1 text-center absolute top-0 w-full z-[60] safe-top">
+        👤 {user?.email || 'No User'} ({isOnline ? 'Online' : 'Offline'})
+      </div>
+
       {/* Map */}
       <div className="absolute inset-0">
         <RiderMap
@@ -370,7 +377,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
       </div>
 
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 z-50 p-4 safe-top">
+      <div className="absolute top-0 left-0 right-0 z-50 p-4 safe-top mt-6">
         <div className="flex items-center justify-between">
           {/* Online Toggle */}
           <div className="flex items-center gap-3 bg-white rounded-full px-4 py-2 shadow-lg">
