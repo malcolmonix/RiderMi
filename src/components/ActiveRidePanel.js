@@ -1,6 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, gql } from '@apollo/client';
 import ChatOverlay from './ChatOverlay';
 import { formatDistance, formatDuration } from '../lib/mapbox';
+
+const GET_MESSAGES = gql`
+  query GetMessages($rideId: ID!) {
+    messages(rideId: $rideId) {
+      id
+      senderId
+      text
+      createdAt
+    }
+  }
+`;
 
 const RIDE_STATUSES = {
   ACCEPTED: { label: '✓ Accepted', icon: '✓', color: 'blue' },
@@ -17,14 +29,76 @@ const getNextStatus = (current) => {
   return currentIdx >= 0 && currentIdx < sequence.length - 1 ? sequence[currentIdx + 1] : null;
 };
 
-export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus, loading }) {
+export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus, loading, user }) {
   const [deliveryCode, setDeliveryCode] = useState('');
   const [codeError, setCodeError] = useState(null);
   const [showChat, setShowChat] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const audioRef = useRef(null);
+  const lastMsgCountRef = useRef(0);
 
   const statusInfo = RIDE_STATUSES[ride.status] || { label: ride.status, icon: '🚗', color: 'gray' };
   const nextStatus = getNextStatus(ride.status);
   const isDeliveryStep = ride.status === 'ARRIVED_AT_DROPOFF';
+
+  // Poll for messages globally for this ride
+  const { data: messagesData } = useQuery(GET_MESSAGES, {
+    variables: { rideId: ride.id || ride.rideId },
+    pollInterval: 2000,
+    skip: !ride.id && !ride.rideId,
+    fetchPolicy: 'network-only',
+    onCompleted: (data) => {
+      const msgs = data?.messages || [];
+      const count = msgs.length;
+
+      // Initial load - don't notify
+      if (lastMsgCountRef.current === 0 && count > 0) {
+        lastMsgCountRef.current = count;
+        return;
+      }
+
+      // If new messages arrived
+      if (count > lastMsgCountRef.current) {
+        const newMsgs = count - lastMsgCountRef.current;
+        console.log(`🔔 ${newMsgs} new message(s) arrived. Total: ${count}`);
+
+        // Check latest message sender (RiderMi logic)
+        const latestMsg = msgs[msgs.length - 1];
+        const isMyMessage = latestMsg?.senderId === user?.uid;
+
+        console.log(`📨 Latest msg from: ${latestMsg?.senderId}, Me: ${user?.uid}, IsMyMessage: ${isMyMessage}, ShowChat: ${showChat}`);
+
+        // If chat is CLOSED and NOT my message, notify user
+        if (!showChat && !isMyMessage) {
+          console.log('🔔 Triggering Notification (Sound + Badge)');
+          setUnreadCount(prev => prev + 1);
+          playNotificationSound();
+        } else {
+          console.log('🔕 Notification skipped (Chat open or My message)');
+        }
+
+        lastMsgCountRef.current = count;
+      }
+    }
+  });
+
+  // Reset unread count when chat opens
+  useEffect(() => {
+    if (showChat) {
+      setUnreadCount(0);
+    }
+  }, [showChat]);
+
+  const playNotificationSound = () => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      }
+      audioRef.current.play().catch(e => console.warn('Audio play failed (interaction needed):', e));
+    } catch (e) {
+      console.error('Sound error:', e);
+    }
+  };
 
   const handleCodeChange = (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -55,9 +129,14 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
           <div className="flex gap-2">
             <button
               onClick={() => setShowChat(true)}
-              className="bg-black text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-800 transition-colors"
+              className="relative bg-black text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-800 transition-colors"
             >
               💬 Chat
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
             </button>
             {ride.user.phoneNumber && (
               <a
@@ -176,7 +255,7 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
       {showChat && (
         <ChatOverlay
           rideId={ride.id}
-          currentUserId={ride.riderId} // Assuming current user is rider
+          currentUserId={user?.uid || ride.riderId} // Prioritize auth user ID
           otherUserName={ride.user?.displayName || 'Customer'}
           onClose={() => setShowChat(false)}
         />
