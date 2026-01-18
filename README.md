@@ -5,17 +5,19 @@ A fully functional rider/driver application similar to Uber or Bolt, built for t
 ## 🚀 Features
 
 ### ✅ Completed Features
-- **Interactive Map**: Full Mapbox GL integration showing rider location and available orders
-- **Order Acceptance**: View and accept available delivery orders from restaurants
+- **Interactive Map**: Full Mapbox GL integration with bottom-sheet-aware centering for optimal UX
+- **Ride Acceptance**: View and accept available ride requests
 - **Live Location Sharing**: Automatic GPS location updates to Firestore for real-time tracking
-- **Status Management**: Update order status (ASSIGNED, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED)
-- **Online/Offline Toggle**: Control availability for receiving delivery requests
+- **Status Management**: Robust ride state management preventing stuck rides after completion
+- **Online/Offline Toggle**: Control availability for receiving ride requests
 - **Distance Calculation**: Shows distance to pickup/dropoff locations
-- **Real-time Updates**: Polling for new orders with 10-second intervals
+- **Real-time Updates**: GraphQL polling with smart completion tracking
 - **Authentication**: Email/password and Google Sign-In with Firebase Auth
-- **Push Notifications**: FCM integration for new order alerts
+- **Push Notifications**: FCM integration for new ride alerts
+- **Chat System**: In-ride messaging with customers
+- **Chat Notifications**: Toast notifications with message preview, sound alerts, and localStorage persistence
 - **Earnings Dashboard**: Track daily, weekly, and monthly earnings
-- **Order History**: View completed and cancelled delivery history
+- **Ride History**: View completed and cancelled ride history
 - **Profile Management**: Update rider info, vehicle details, and license plate
 
 ### 📱 Pages
