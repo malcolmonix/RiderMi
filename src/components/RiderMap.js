@@ -23,7 +23,7 @@ export default function RiderMap({ currentLocation, activeRide, availableRides =
         center: [currentLocation.lng, currentLocation.lat],
         zoom: 15,
         duration: 1000,
-        padding: { top: 50, bottom: 50, left: 50, right: 50 } // Keep padding for markers
+        padding: { top: 0, bottom: 350, left: 50, right: 50 } // Bottom padding for floating sheet
       });
     }
   }, [currentLocation, isFollowing]);
@@ -43,7 +43,8 @@ export default function RiderMap({ currentLocation, activeRide, availableRides =
       mapRef.current.flyTo({
         center: [currentLocation.lng, currentLocation.lat],
         zoom: 16,
-        duration: 1500
+        duration: 1500,
+        padding: { top: 0, bottom: 350, left: 0, right: 0 }
       });
     }
   };
@@ -226,7 +227,7 @@ export default function RiderMap({ currentLocation, activeRide, availableRides =
                   [Math.max(currentLocation.lng, destinationCoords.lng), Math.max(currentLocation.lat, destinationCoords.lat)]
                 ];
                 mapRef.current.fitBounds(bounds, {
-                  padding: 100,
+                  padding: { top: 100, bottom: 350, left: 100, right: 100 },
                   duration: 1500
                 });
                 setIsFollowing(false); // Focus trip, stop follow "Me"
