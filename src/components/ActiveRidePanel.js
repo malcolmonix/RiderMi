@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, gql } from '@apollo/client';
 import ChatOverlay from './ChatOverlay';
 import { formatDistance, formatDuration } from '../lib/mapbox';
+import toast, { Toaster } from 'react-hot-toast';
 
 const GET_MESSAGES = gql`
   query GetMessages($rideId: ID!) {
@@ -50,19 +51,23 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
     onCompleted: (data) => {
       const msgs = data?.messages || [];
       const count = msgs.length;
+      const storageKey = `seen_msg_count_${ride.id || ride.rideId}`;
 
-      // Initial load - don't notify
-      if (lastMsgCountRef.current === 0 && count > 0) {
-        lastMsgCountRef.current = count;
+      // Get last seen count from storage
+      const lastSeenCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
+
+      // If chat is open, update storage immediately
+      if (showChat) {
+        localStorage.setItem(storageKey, count.toString());
+        setUnreadCount(0);
         return;
       }
 
-      // If new messages arrived
-      if (count > lastMsgCountRef.current) {
-        const newMsgs = count - lastMsgCountRef.current;
-        console.log(`🔔 ${newMsgs} new message(s) arrived. Total: ${count}`);
+      // Calculate unread
+      const unread = count - lastSeenCount;
 
-        // Check latest message sender (RiderMi logic)
+      if (unread > 0) {
+        // Check if the latest message is ours
         const latestMsg = msgs[msgs.length - 1];
         const isMyMessage = latestMsg?.senderId === user?.uid;
 
@@ -70,15 +75,45 @@ export default function ActiveRidePanel({ ride, currentLocation, onUpdateStatus,
 
         // If chat is CLOSED and NOT my message, notify user
         if (!showChat && !isMyMessage) {
-          console.log('🔔 Triggering Notification (Sound + Badge)');
-          setUnreadCount(prev => prev + 1);
-          playNotificationSound();
+          console.log('🔔 Triggering Notification (Sound + Badge + Toast)');
+          setUnreadCount(unread);
+
+          // Only play sound and show toast if count changed (new message)
+          if (count > lastMsgCountRef.current) {
+            playNotificationSound();
+
+            // Show toast notification with message preview
+            toast(
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">💬</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">New message from customer</p>
+                  <p className="text-sm text-gray-600 line-clamp-2">{latestMsg?.text || 'New message'}</p>
+                </div>
+              </div>,
+              {
+                duration: 4000,
+                position: 'top-center',
+                style: {
+                  background: '#fff',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+                  borderRadius: '12px',
+                  border: '1px solid #e5e7eb',
+                },
+              }
+            );
+          }
         } else {
+          // If it's my message, mark as seen implicitly
+          localStorage.setItem(storageKey, count.toString());
+          setUnreadCount(0);
           console.log('🔕 Notification skipped (Chat open or My message)');
         }
-
-        lastMsgCountRef.current = count;
+      } else {
+        setUnreadCount(0);
       }
+
+      lastMsgCountRef.current = count;
     }
   });
 
