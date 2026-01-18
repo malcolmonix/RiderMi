@@ -5,6 +5,7 @@ import { auth, registerMessagingSW, requestAndGetFcmToken, onMessageHandler, db 
 import { apolloClient } from '../lib/apollo';
 import { doc, setDoc } from 'firebase/firestore';
 import GlobalRideListener from '../components/GlobalRideListener';
+import { Toaster, toast } from 'react-hot-toast';
 import '../styles/globals.css';
 
 function MyApp({ Component, pageProps }) {
@@ -48,10 +49,29 @@ function MyApp({ Component, pageProps }) {
           // Handle foreground messages
           onMessageHandler((payload) => {
             console.log('Foreground message:', payload);
-            // Show notification or update UI
+            const title = payload.notification?.title || 'New Order';
+            const body = payload.notification?.body || 'You have a new delivery request';
+
+            // Show In-App Toast
+            toast((t) => (
+              <div onClick={() => { toast.dismiss(t.id); }} style={{ cursor: 'pointer' }}>
+                <p className="font-bold text-sm">🔔 {title}</p>
+                <p className="text-sm">{body}</p>
+              </div>
+            ), {
+              duration: 6000,
+              position: 'top-center',
+              style: {
+                background: '#000',
+                color: '#fff',
+                border: '1px solid #333',
+              },
+            });
+
+            // Also try native notification if allowed
             if (typeof window !== 'undefined' && Notification.permission === 'granted') {
-              new Notification(payload.notification?.title || 'New Order', {
-                body: payload.notification?.body || 'You have a new delivery request',
+              new Notification(title, {
+                body: body,
                 icon: '/icons/icon-192x192.png'
               });
             }
@@ -108,6 +128,7 @@ function MyApp({ Component, pageProps }) {
         isOnline={isOnline}
         toggleOnline={toggleOnline}
       />
+      <Toaster />
     </ApolloProvider>
   );
 }

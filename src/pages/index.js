@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -20,6 +20,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   const [error, setError] = useState(null);
   const [rideValidated, setRideValidated] = useState(false);
   const [rideErrorCount, setRideErrorCount] = useState(0);
+  const completionHandledRef = useRef(false); // Prevent duplicate cleanup
 
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
@@ -51,10 +52,10 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   }, [serverActiveRideData, activeRideId, user]);
 
   // Specific ride details (for when we have an ID)
-  const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError } = useQuery(GET_RIDE, {
+  const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError, stopPolling } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
-    pollInterval: activeRideId && rideErrorCount < 5 ? 3000 : 0,
+    pollInterval: activeRideId && rideErrorCount < 5 && !completionHandledRef.current ? 3000 : 0,
     fetchPolicy: 'cache-and-network',
     notifyOnNetworkStatusChange: true
   });
@@ -117,12 +118,39 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
       // ONLY clear when server confirms ride is finished
       if (activeRideData.ride.status === 'COMPLETED' || activeRideData.ride.status === 'CANCELLED') {
         console.log('✅ SERVER CONFIRMED: Ride finished with status:', activeRideData.ride.status);
+
+        // Prevent duplicate handling if already processed
+        if (completionHandledRef.current) {
+          console.log('🔒 Completion already handled, skipping');
+          return;
+        }
+
+        // Mark as handled immediately
+        completionHandledRef.current = true;
+
+        // Stop polling to prevent interference
+        if (stopPolling) {
+          console.log('⏹️ Stopping ride polling');
+          stopPolling();
+        }
+
         // Wait a moment for UI to show completion state before clearing
         timer = setTimeout(() => {
+          console.log('🧹 Clearing active ride state...');
           setActiveRideId(null);
           setRideValidated(false);
+          setShowOrdersList(true); // Ensure back to list
+
+          // Clear ALL persistence keys
           localStorage.removeItem('activeRideId');
           localStorage.removeItem('lastActiveRideTime');
+          if (user?.uid) {
+            localStorage.removeItem(`activeRideId_${user.uid}`);
+            localStorage.removeItem(`lastActiveRideTime_${user.uid}`);
+          }
+
+          // Reset completion flag for next ride
+          completionHandledRef.current = false;
         }, 5000);
       }
     } else if (activeRideData && !activeRideData.ride && activeRideId) {
@@ -132,15 +160,26 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
 
       setActiveRideId(null);
       setRideValidated(false);
+      setShowOrdersList(true);
+
+      // Clear ALL persistence keys
       localStorage.removeItem('activeRideId');
       localStorage.removeItem('lastActiveRideTime');
-      setShowOrdersList(true); // Show available orders again
+      if (user?.uid) {
+        localStorage.removeItem(`activeRideId_${user.uid}`);
+        localStorage.removeItem(`lastActiveRideTime_${user.uid}`);
+      }
+
+      // Reset completion flag
+      completionHandledRef.current = false;
     }
 
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [activeRideData, activeRideId]);
+  }, [activeRideData, activeRideId, stopPolling, user]);
+
+
 
   useEffect(() => {
     if (activeRideError) {
