@@ -4,6 +4,18 @@ import { signOut, updateProfile as firebaseUpdateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import BottomNav from '../components/BottomNav';
+import { useMutation, gql } from '@apollo/client';
+
+const UPDATE_RIDER_PROFILE = gql`
+  mutation UpdateRiderProfile($vehicleType: String, $licensePlate: String, $secondaryPhone: String) {
+    updateRiderProfile(vehicleType: $vehicleType, licensePlate: $licensePlate, secondaryPhone: $secondaryPhone) {
+      id
+      vehicleType
+      licensePlate
+      secondaryPhone
+    }
+  }
+`;
 
 export default function Profile({ user, loading: pageLoading }) {
   const router = useRouter();
@@ -12,11 +24,14 @@ export default function Profile({ user, loading: pageLoading }) {
   const [profile, setProfile] = useState({
     displayName: '',
     phoneNumber: '',
+    secondaryPhone: '',
     vehicle: '',
     licensePlate: '',
     averageRating: 0,
     totalRatings: 0
   });
+
+  const [updateRiderProfile] = useMutation(UPDATE_RIDER_PROFILE);
 
   const showLoading = () => (
     <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -46,6 +61,7 @@ export default function Profile({ user, loading: pageLoading }) {
           setProfile({
             displayName: data.displayName || user.displayName || '',
             phoneNumber: data.phoneNumber || user.phoneNumber || '',
+            secondaryPhone: data.secondaryPhone || '',
             vehicle: data.vehicle || '',
             licensePlate: data.licensePlate || '',
             averageRating: data.averageRating || 0,
@@ -55,6 +71,7 @@ export default function Profile({ user, loading: pageLoading }) {
           setProfile({
             displayName: user.displayName || '',
             phoneNumber: user.phoneNumber || '',
+            secondaryPhone: '',
             vehicle: '',
             licensePlate: '',
             averageRating: 0,
@@ -79,10 +96,20 @@ export default function Profile({ user, loading: pageLoading }) {
         displayName: profile.displayName
       });
 
+      // Update SQL DB via GraphQL
+      await updateRiderProfile({
+        variables: {
+          vehicleType: profile.vehicle,
+          licensePlate: profile.licensePlate,
+          secondaryPhone: profile.secondaryPhone
+        }
+      });
+
       // Update Firestore profile (preserve rating fields)
       await setDoc(doc(db, 'riders', user.uid), {
         displayName: profile.displayName,
         phoneNumber: profile.phoneNumber,
+        secondaryPhone: profile.secondaryPhone,
         vehicle: profile.vehicle,
         licensePlate: profile.licensePlate,
         updatedAt: new Date().toISOString()
@@ -211,14 +238,18 @@ export default function Profile({ user, loading: pageLoading }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Vehicle Type
               </label>
-              <input
-                type="text"
+              <select
                 value={profile.vehicle}
                 onChange={(e) => setProfile({ ...profile, vehicle: e.target.value })}
                 disabled={!editing}
-                placeholder="e.g., Motorcycle, Bicycle"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-50 disabled:text-gray-500"
-              />
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-50 disabled:text-gray-500 appearance-none bg-white"
+              >
+                <option value="">Select Vehicle</option>
+                <option value="Car">Car</option>
+                <option value="Cycle">Bike / Cycle</option>
+                <option value="Keke">Keke (Tricycle)</option>
+                <option value="Dispatch">Dispatch Van/Truck</option>
+              </select>
             </div>
 
             <div>
@@ -231,6 +262,20 @@ export default function Profile({ user, loading: pageLoading }) {
                 onChange={(e) => setProfile({ ...profile, licensePlate: e.target.value })}
                 disabled={!editing}
                 placeholder="e.g., LAG-123-ABC"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Secondary Phone (Call Icon)
+              </label>
+              <input
+                type="tel"
+                value={profile.secondaryPhone}
+                onChange={(e) => setProfile({ ...profile, secondaryPhone: e.target.value })}
+                disabled={!editing}
+                placeholder="Call number for customers"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-50 disabled:text-gray-500"
               />
             </div>

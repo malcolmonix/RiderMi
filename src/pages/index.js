@@ -4,7 +4,8 @@ import { useMutation, useQuery } from '@apollo/client';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth, db, registerMessagingSW, requestAndGetFcmToken } from '../lib/firebase';
-import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS, GET_ACTIVE_RIDER_RIDE } from '../lib/graphql';
+import { GET_AVAILABLE_RIDES, GET_RIDE, ACCEPT_RIDE, UPDATE_RIDE_STATUS, GET_ACTIVE_RIDER_RIDE, RIDER_COUNTER_OFFER } from '../lib/graphql';
+import toast from 'react-hot-toast';
 import { calculateDistance, formatDistance, formatDuration } from '../lib/mapbox';
 import RiderMap from '../components/RiderMap';
 import RideCard from '../components/RideCard';
@@ -64,6 +65,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   const [acceptRide, { loading: accepting, data: acceptRideData, error: acceptRideError }] = useMutation(ACCEPT_RIDE);
 
   const [updateRideStatus, { loading: updating, data: updateRideStatusData, error: updateRideStatusError }] = useMutation(UPDATE_RIDE_STATUS);
+  const [counterOffer, { loading: countering }] = useMutation(RIDER_COUNTER_OFFER);
 
   // INDUSTRY STANDARD: Sync online status with Firestore on mount
   // This ensures the UI reflects the true server state
@@ -333,6 +335,24 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
     }
   };
 
+  const handleCounterOffer = async (rideId, amount) => {
+    try {
+      await counterOffer({
+        variables: { rideId, amount }
+      });
+      // Show success toast
+      toast.success(`Counter offer of ₦${amount} sent!`, {
+        icon: '📤',
+        style: { background: '#000', color: '#fff' }
+      });
+      refetchRides();
+    } catch (error) {
+      console.error('Error sending counter offer:', error);
+      setError(error.message || 'Failed to send counter offer');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
   // Update ride status
   const handleUpdateStatus = async (status, confirmCode) => {
     if (!activeRideId) return;
@@ -505,7 +525,8 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
                     ride={ride}
                     distance={getDistanceToRide(ride)}
                     onAccept={() => handleAcceptRide(ride.rideId || ride.id)}
-                    loading={accepting}
+                    onCounterOffer={(amount) => handleCounterOffer(ride.rideId || ride.id, amount)}
+                    loading={accepting || countering}
                   />
                 ))
               )}

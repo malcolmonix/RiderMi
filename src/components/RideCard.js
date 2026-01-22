@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { formatDistance, formatDuration } from '../lib/mapbox';
 
-export default function RideCard({ ride, distance, onAccept, loading }) {
+export default function RideCard({ ride, distance, onAccept, onCounterOffer, loading }) {
+  const [showBidding, setShowBidding] = useState(false);
+  const [counterAmount, setCounterAmount] = useState(ride.fare + 100);
   // Format the ride creation time
   const rideDate = new Date(ride.createdAt);
   const timeAgo = getTimeAgo(rideDate);
@@ -69,24 +72,78 @@ export default function RideCard({ ride, distance, onAccept, loading }) {
         </div>
         <div className="flex items-center gap-1">
           <span>💳</span>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            ride.paymentMethod === 'CASH' 
-              ? 'bg-green-100 text-green-700' 
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ride.paymentMethod === 'CASH'
+              ? 'bg-green-100 text-green-700'
               : 'bg-blue-100 text-blue-700'
-          }`}>
+            }`}>
             {ride.paymentMethod || 'CASH'}
           </span>
         </div>
       </div>
 
-      {/* Accept Button */}
-      <button
-        onClick={onAccept}
-        disabled={loading}
-        className="w-full bg-black text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50"
-      >
-        {loading ? 'Accepting...' : 'Accept Ride'}
-      </button>
+      {/* Accept / Counter Buttons */}
+      {!showBidding ? (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBidding(true)}
+            disabled={loading}
+            className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Offer Price
+          </button>
+          <button
+            onClick={onAccept}
+            disabled={loading}
+            className="flex-[2] bg-black text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50"
+          >
+            {loading ? 'Accepting...' : 'Accept Ride'}
+          </button>
+        </div>
+      ) : (
+        <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <span className="text-sm font-bold text-gray-700">Counter Offer</span>
+            <button onClick={() => setShowBidding(false)} className="text-gray-400">✕</button>
+          </div>
+
+          <div className="relative mb-3">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-500">₦</span>
+            <input
+              type="number"
+              value={counterAmount}
+              onChange={(e) => setCounterAmount(Number(e.target.value))}
+              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-bold"
+            />
+          </div>
+
+          {/* +/- 500 increment buttons */}
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => setCounterAmount(prev => Math.max(0, prev - 500))}
+              className="flex-1 py-2.5 bg-red-100 text-red-700 rounded-lg text-sm font-bold border-2 border-red-300 hover:bg-red-200 active:scale-95 transition-all"
+            >
+              -₦500
+            </button>
+            <button
+              onClick={() => setCounterAmount(prev => prev + 500)}
+              className="flex-1 py-2.5 bg-green-100 text-green-700 rounded-lg text-sm font-bold border-2 border-green-300 hover:bg-green-200 active:scale-95 transition-all"
+            >
+              +₦500
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              onCounterOffer(counterAmount);
+              setShowBidding(false);
+            }}
+            disabled={loading || !counterAmount || counterAmount <= 0}
+            className="w-full bg-black text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 shadow-md active:scale-[0.98]"
+          >
+            Send Counter Offer
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -95,13 +152,13 @@ function getTimeAgo(date) {
   const now = new Date();
   const diffMs = now - date;
   const diffMins = Math.floor(diffMs / 60000);
-  
+
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m ago`;
-  
+
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
-  
+
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays}d ago`;
 }

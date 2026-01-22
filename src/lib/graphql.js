@@ -158,6 +158,18 @@ export const UPDATE_RIDE_STATUS = gql`
   }
 `;
 
+// Rider counter offer
+export const RIDER_COUNTER_OFFER = gql`
+  mutation RiderCounterOffer($rideId: ID!, $amount: Float!) {
+    riderCounterOffer(rideId: $rideId, amount: $amount) {
+      id
+      rideId
+      fare
+      status
+    }
+  }
+`;
+
 export const GET_RIDER_HISTORY = gql`
   query GetRiderHistory {
     riderRides {

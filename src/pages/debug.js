@@ -114,7 +114,7 @@ export default function DebugPage() {
   return (
     <div style={{ padding: '20px', fontFamily: 'monospace', background: '#1a1a1a', color: '#00ff00', minHeight: '100vh' }}>
       <h1 style={{ borderBottom: '2px solid #00ff00', paddingBottom: '10px' }}>🔧 RiderMi Debug Console</h1>
-      
+
       {/* Connection Status */}
       <section style={{ marginTop: '20px', padding: '15px', background: '#2a2a2a', borderRadius: '8px' }}>
         <h2>📡 Connection Status</h2>
@@ -183,10 +183,10 @@ export default function DebugPage() {
             ) : (
               <div style={{ fontSize: '14px' }}>
                 {ridesData.availableRides.map((ride, index) => (
-                  <div key={ride.id} style={{ 
-                    padding: '10px', 
-                    marginBottom: '10px', 
-                    background: '#1a1a1a', 
+                  <div key={ride.id} style={{
+                    padding: '10px',
+                    marginBottom: '10px',
+                    background: '#1a1a1a',
                     borderLeft: '4px solid #00ff00',
                     borderRadius: '4px'
                   }}>
@@ -194,7 +194,7 @@ export default function DebugPage() {
                     <div><strong>Status:</strong> {ride.status}</div>
                     <div><strong>Pickup:</strong> {ride.pickupAddress}</div>
                     <div><strong>Dropoff:</strong> {ride.dropoffAddress}</div>
-                    <div><strong>Fare:</strong> ${ride.fare?.toFixed(2)}</div>
+                    <div><strong>Fare:</strong> ₦{ride.fare ? ride.fare.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</div>
                     <div><strong>Created:</strong> {new Date(ride.createdAt).toLocaleString()}</div>
                   </div>
                 ))}
