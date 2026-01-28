@@ -52,13 +52,47 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
     }
   }, [serverActiveRideData, activeRideId, user]);
 
-  // Specific ride details (for when we have an ID)
+  // Specific ride details (for when we have an ID) - Enhanced error handling
   const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError, stopPolling } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
     skip: !activeRideId,
     pollInterval: activeRideId && rideErrorCount < 5 && !completionHandledRef.current ? 3000 : 0,
     fetchPolicy: 'cache-and-network',
-    notifyOnNetworkStatusChange: true
+    notifyOnNetworkStatusChange: true,
+    onError: (error) => {
+      console.error('❌ GET_RIDE query error:', error);
+      setRideErrorCount(prev => {
+        const newCount = prev + 1;
+        console.log(`🔢 Ride error count: ${newCount}/5`);
+        
+        // Show user-friendly error message
+        if (newCount === 1) {
+          setError('Connection issue. Retrying...');
+        } else if (newCount === 3) {
+          setError('Having trouble connecting. Please check your internet.');
+        } else if (newCount >= 5) {
+          setError('Unable to connect. Please refresh the page.');
+          // Stop polling after 5 consecutive failures
+          console.log('⏹️ Stopping polling due to consecutive errors');
+          if (stopPolling) stopPolling();
+        }
+        
+        return newCount;
+      });
+      
+      // Clear error message after 5 seconds unless it's a persistent error
+      if (rideErrorCount < 4) {
+        setTimeout(() => setError(null), 5000);
+      }
+    },
+    onCompleted: (data) => {
+      // Reset error count on successful query
+      if (rideErrorCount > 0) {
+        console.log('✅ Query successful, resetting error count');
+        setRideErrorCount(0);
+        setError(null);
+      }
+    }
   });
 
   // Mutations
@@ -183,20 +217,41 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
 
 
 
+  // Enhanced error handling for active ride errors
   useEffect(() => {
     if (activeRideError) {
       console.error('❌ Error fetching active ride:', activeRideError);
-      setRideErrorCount(prev => prev + 1);
-      // Only clear on auth errors or after many failures
-      if (activeRideError.message?.includes('Authentication') || rideErrorCount >= 4) {
-        console.error('🔐 Auth error or too many errors, clearing ride');
+      
+      // Handle authentication errors immediately
+      if (activeRideError.message?.includes('Authentication') || 
+          activeRideError.message?.includes('Unauthorized') ||
+          activeRideError.graphQLErrors?.some(err => err.extensions?.code === 'UNAUTHENTICATED')) {
+        console.error('🔐 Authentication error, clearing ride state');
         setActiveRideId(null);
         setRideValidated(false);
         localStorage.removeItem('activeRideId');
+        if (user?.uid) {
+          localStorage.removeItem(`activeRideId_${user.uid}`);
+        }
+        setRideErrorCount(0);
+        setError('Session expired. Please refresh the page.');
+        return;
+      }
+
+      // For other errors, the onError callback in the query handles error counting
+      // Only clear ride state after many consecutive failures (handled in query onError)
+      if (rideErrorCount >= 5) {
+        console.error('🚫 Too many consecutive errors, clearing ride state');
+        setActiveRideId(null);
+        setRideValidated(false);
+        localStorage.removeItem('activeRideId');
+        if (user?.uid) {
+          localStorage.removeItem(`activeRideId_${user.uid}`);
+        }
         setRideErrorCount(0);
       }
     }
-  }, [activeRideError, rideErrorCount]);
+  }, [activeRideError, rideErrorCount, user]);
 
   // Handle acceptRide mutation result
   useEffect(() => {
@@ -473,10 +528,29 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
           </div>
         </div>
 
-        {/* Error Message */}
+        {/* Error Message with Retry Option */}
         {error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-sm text-red-800">{error}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-red-800 flex-1">{error}</p>
+              {rideErrorCount >= 5 && (
+                <button
+                  onClick={() => {
+                    console.log('🔄 Manual retry requested');
+                    setRideErrorCount(0);
+                    setError(null);
+                    if (activeRideId) {
+                      refetchActiveRide();
+                    } else {
+                      refetchRides();
+                    }
+                  }}
+                  className="ml-3 px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

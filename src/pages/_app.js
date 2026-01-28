@@ -5,6 +5,7 @@ import { auth, registerMessagingSW, requestAndGetFcmToken, onMessageHandler, db 
 import { apolloClient } from '../lib/apollo';
 import { doc, setDoc } from 'firebase/firestore';
 import GlobalRideListener from '../components/GlobalRideListener';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { Toaster, toast } from 'react-hot-toast';
 import '../styles/globals.css';
 
@@ -119,17 +120,19 @@ function MyApp({ Component, pageProps }) {
   }
 
   return (
-    <ApolloProvider client={apolloClient}>
-      <GlobalRideListener user={user} isOnline={isOnline} />
-      <Component
-        {...pageProps}
-        user={user}
-        loading={loading}
-        isOnline={isOnline}
-        toggleOnline={toggleOnline}
-      />
-      <Toaster />
-    </ApolloProvider>
+    <ErrorBoundary>
+      <ApolloProvider client={apolloClient}>
+        <GlobalRideListener user={user} isOnline={isOnline} />
+        <Component
+          {...pageProps}
+          user={user}
+          loading={loading}
+          isOnline={isOnline}
+          toggleOnline={toggleOnline}
+        />
+        <Toaster />
+      </ApolloProvider>
+    </ErrorBoundary>
   );
 }
 
