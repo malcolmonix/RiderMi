@@ -24,6 +24,7 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   const [criticalError, setCriticalError] = useState(null);
   const [rideValidated, setRideValidated] = useState(false);
   const [rideErrorCount, setRideErrorCount] = useState(0);
+  const [pollingEnabled, setPollingEnabled] = useState(true); // Control polling
   const completionHandledRef = useRef(false); // Prevent duplicate cleanup
 
   // Global error handler for unhandled errors
@@ -52,15 +53,15 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   }, []);
 
   // Query available rides - Always call hooks unconditionally
-  const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
-    skip: !user || !isOnline,
-    pollInterval: isOnline && user ? 10000 : 0 // Poll every 10 seconds when online
+  const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError, startPolling: startRidesPolling, stopPolling: stopRidesPolling } = useQuery(GET_AVAILABLE_RIDES, {
+    skip: !user || !isOnline || !pollingEnabled,
+    pollInterval: isOnline && user && pollingEnabled ? 10000 : 0 // Poll every 10 seconds when online
   });
 
   // Query active ride details from server (Robust restoration)
-  const { data: serverActiveRideData, loading: loadingActiveRide } = useQuery(GET_ACTIVE_RIDER_RIDE, {
-    skip: !user,
-    pollInterval: 5000,
+  const { data: serverActiveRideData, loading: loadingActiveRide, startPolling: startActiveRidePolling, stopPolling: stopActiveRidePolling } = useQuery(GET_ACTIVE_RIDER_RIDE, {
+    skip: !user || !pollingEnabled,
+    pollInterval: pollingEnabled ? 5000 : 0,
     fetchPolicy: 'network-only' // Always check server for truth
   });
 
@@ -81,10 +82,10 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   }, [serverActiveRideData, activeRideId, user]);
 
   // Specific ride details (for when we have an ID) - Enhanced error handling
-  const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError, stopPolling } = useQuery(GET_RIDE, {
+  const { data: activeRideData, refetch: refetchActiveRide, error: activeRideError, stopPolling: stopRidePolling, startPolling: startRidePolling } = useQuery(GET_RIDE, {
     variables: { id: activeRideId },
-    skip: !activeRideId,
-    pollInterval: activeRideId && rideErrorCount < 5 && !completionHandledRef.current ? 3000 : 0,
+    skip: !activeRideId || !pollingEnabled,
+    pollInterval: activeRideId && rideErrorCount < 5 && !completionHandledRef.current && pollingEnabled ? 3000 : 0,
     fetchPolicy: 'cache-and-network',
     notifyOnNetworkStatusChange: true,
     onError: (error) => {
@@ -103,9 +104,12 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
           // Show detailed error modal on Android
           setCriticalError(error);
           setShowErrorModal(true);
-          // Stop polling after 5 consecutive failures
-          console.log('⏹️ Stopping polling due to consecutive errors');
-          if (stopPolling) stopPolling();
+          // Stop ALL polling after 5 consecutive failures
+          console.log('⏹️ Stopping ALL polling due to consecutive errors');
+          setPollingEnabled(false);
+          if (stopRidePolling) stopRidePolling();
+          if (stopRidesPolling) stopRidesPolling();
+          if (stopActiveRidePolling) stopActiveRidePolling();
         }
         
         return newCount;
