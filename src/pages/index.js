@@ -11,6 +11,7 @@ import RiderMap from '../components/RiderMap';
 import RideCard from '../components/RideCard';
 import ActiveRidePanel from '../components/ActiveRidePanel';
 import BottomNav from '../components/BottomNav';
+import ErrorDisplay from '../components/ErrorDisplay';
 
 export default function Home({ user, loading, isOnline, toggleOnline }) {
   const router = useRouter();
@@ -19,9 +20,36 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
   const [activeRideId, setActiveRideId] = useState(null);
   const [showOrdersList, setShowOrdersList] = useState(true);
   const [error, setError] = useState(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [criticalError, setCriticalError] = useState(null);
   const [rideValidated, setRideValidated] = useState(false);
   const [rideErrorCount, setRideErrorCount] = useState(0);
   const completionHandledRef = useRef(false); // Prevent duplicate cleanup
+
+  // Global error handler for unhandled errors
+  useEffect(() => {
+    const handleError = (event) => {
+      console.error('🚨 Unhandled error:', event.error);
+      setCriticalError(event.error);
+      setShowErrorModal(true);
+      event.preventDefault(); // Prevent default error handling
+    };
+
+    const handleRejection = (event) => {
+      console.error('🚨 Unhandled promise rejection:', event.reason);
+      setCriticalError(event.reason);
+      setShowErrorModal(true);
+      event.preventDefault(); // Prevent default rejection handling
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
 
   // Query available rides - Always call hooks unconditionally
   const { data: ridesData, loading: ridesLoading, refetch: refetchRides, error: ridesError } = useQuery(GET_AVAILABLE_RIDES, {
@@ -72,6 +100,9 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
           setError('Having trouble connecting. Please check your internet.');
         } else if (newCount >= 5) {
           setError('Unable to connect. Please refresh the page.');
+          // Show detailed error modal on Android
+          setCriticalError(error);
+          setShowErrorModal(true);
           // Stop polling after 5 consecutive failures
           console.log('⏹️ Stopping polling due to consecutive errors');
           if (stopPolling) stopPolling();
@@ -137,6 +168,9 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
     if (ridesError) {
       console.error('❌ Error fetching available rides:', ridesError);
       setError(`Failed to load rides: ${ridesError.message}`);
+      // Show detailed error modal for critical errors
+      setCriticalError(ridesError);
+      setShowErrorModal(true);
       const timer = setTimeout(() => setError(null), 5000);
       return () => clearTimeout(timer);
     }
@@ -476,6 +510,28 @@ export default function Home({ user, loading, isOnline, toggleOnline }) {
 
   return (
     <div className="h-[100dvh] w-screen relative overflow-hidden bg-gray-100">
+      {/* Error Modal */}
+      {showErrorModal && criticalError && (
+        <ErrorDisplay
+          error={criticalError}
+          onRetry={() => {
+            setShowErrorModal(false);
+            setCriticalError(null);
+            setRideErrorCount(0);
+            setError(null);
+            if (activeRideId) {
+              refetchActiveRide();
+            } else {
+              refetchRides();
+            }
+          }}
+          onDismiss={() => {
+            setShowErrorModal(false);
+            setCriticalError(null);
+          }}
+        />
+      )}
+
       {/* Debug Header */}
       <div className="bg-black/80 text-white text-[10px] px-2 py-1 text-center absolute top-0 w-full z-[60] safe-top">
         👤 {user?.email || 'No User'} ({isOnline ? 'Online' : 'Offline'})
