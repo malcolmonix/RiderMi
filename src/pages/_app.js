@@ -48,7 +48,7 @@ function MyApp({ Component, pageProps }) {
           }
 
           // Handle foreground messages
-          onMessageHandler((payload) => {
+          onMessageHandler(async (payload) => {
             console.log('Foreground message:', payload);
             const title = payload.notification?.title || 'New Order';
             const body = payload.notification?.body || 'You have a new delivery request';
@@ -69,12 +69,22 @@ function MyApp({ Component, pageProps }) {
               },
             });
 
-            // Also try native notification if allowed
+            // Use Service Worker to show notification (required for Android)
             if (typeof window !== 'undefined' && Notification.permission === 'granted') {
-              new Notification(title, {
-                body: body,
-                icon: '/icons/icon-192x192.png'
-              });
+              try {
+                const registration = await navigator.serviceWorker.ready;
+                await registration.showNotification(title, {
+                  body: body,
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-72x72.png',
+                  vibrate: [200, 100, 200],
+                  tag: 'ride-notification',
+                  requireInteraction: false,
+                  data: payload.data
+                });
+              } catch (error) {
+                console.warn('Failed to show notification via Service Worker:', error);
+              }
             }
           });
         } catch (error) {
